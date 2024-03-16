@@ -2,6 +2,8 @@ package org.tosa.engine.core;
 
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.tosa.engine.core.render.Window;
+import org.tosa.engine.core.utils.Input;
+import org.tosa.engine.core.utils.KeyCode;
 
 public class Engine {
     private Window MainWindow;
@@ -17,12 +19,21 @@ public class Engine {
     }
 
     public void update() {
-        while(!this.MainWindow.isClose()) {
-            this.MainWindow.update();
+        while(!MainWindow.isClose()) {
+            if(Input.getKeyDown(MainWindow.getWindowId(), KeyCode.LeftAlt))
+                System.out.println("B pressed");
+
+            if(Input.getKeyUp(MainWindow.getWindowId(), KeyCode.B))
+                System.out.println("B releassed");
+
+            if(Input.getMouse(MainWindow.getWindowId(), KeyCode.MouseLeft))
+                System.out.println("B releassed");
+
+            MainWindow.update();
             //render
         }
 
-        this.MainWindow.destroy();
+        MainWindow.destroy();
     }
 
     public Window getMainWindow() {
