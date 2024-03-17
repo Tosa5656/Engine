@@ -11,6 +11,12 @@ public class Input {
     private static boolean isMousePressed = false;
     private static boolean wasMouseIsPressed;
 
+    public static int mouseX;
+    public static int mouseY;
+
+    public static void setMouseCallbacks() {
+
+    }
 
     public static boolean getKey(long window, int key) {
         return GLFW.glfwGetKey(window, key) == GLFW.GLFW_TRUE;
@@ -41,6 +47,28 @@ public class Input {
     //Mause
     public static boolean getMouse(long window, int key) {
         return GLFW.glfwGetMouseButton(window, key) == GLFW.GLFW_TRUE;
+    }
+
+    public static boolean getMouseDown(long window, int key) {
+        if(!isMousePressed && GLFW.glfwGetMouseButton(window, key) == GLFW.GLFW_TRUE) {
+            isMousePressed = true;
+            return true;
+        } else if(GLFW.glfwGetMouseButton(window, key) == GLFW.GLFW_FALSE) {
+            isMousePressed = false;
+        }
+        return false;
+    }
+
+    public static boolean getMouseUp(long window, int key) {
+        boolean _isMousePressed = GLFW.glfwGetMouseButton(window, key) == GLFW.GLFW_TRUE;
+
+        if (!_isMousePressed && wasMouseIsPressed) {
+            wasMouseIsPressed = _isMousePressed;
+            return true;
+        } else {
+            wasMouseIsPressed = _isMousePressed;
+            return false;
+        }
     }
 
 }

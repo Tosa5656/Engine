@@ -1,4 +1,4 @@
-package org.tosa.engine.core.render;
+package org.tosa.engine.core.renderer;
 
 import org.lwjgl.BufferUtils;
 import org.lwjgl.glfw.GLFW;
