@@ -1,6 +1,8 @@
 ﻿#include <iostream>
+#include <Core.h>
 
-int main()
+int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
 {
-    std::cout << "Hello World!\n";
+	Window window = Window(nCmdShow, L"Engine", L"Engine", 0, 0, 800, 600);
+	system("pause");
 }
