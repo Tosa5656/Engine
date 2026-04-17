@@ -188,6 +188,7 @@ private:
     const bool m_enableValidationLayers = false;
 #else
     const bool m_enableValidationLayers = true;
+#endif
     const std::vector<const char*> m_validationLayers = {
         "VK_LAYER_KHRONOS_validation"
     };

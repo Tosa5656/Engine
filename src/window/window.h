@@ -15,7 +15,6 @@ public:
 private:
     void Init();
 
-
     static void FramebufferResizeCallback(GLFWwindow* window, int width, int height);
 
     GLFWwindow* m_window;

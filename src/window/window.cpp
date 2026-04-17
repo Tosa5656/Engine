@@ -16,7 +16,7 @@ Window::Window(std::string title, int width, int height)
 
 Window::~Window()
 {
-
+    //Destroy later
 }
 
 void Window::Init()
@@ -50,5 +50,5 @@ void Window::Init()
 void Window::FramebufferResizeCallback(GLFWwindow *window, int width, int height)
 {
     auto app = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
-    app->m_renderer.SetFramebufferResized(true);
+    app->m_renderer.SetFramebufferResized(true);2
 }

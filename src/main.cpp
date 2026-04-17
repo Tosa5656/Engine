@@ -1,5 +1,4 @@
 #include <iostream>
-
 #include <window/window.h>
 
 int main()
