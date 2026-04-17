@@ -5,6 +5,7 @@
 #include <optional>
 #include <set>
 #include <cstdint>
+#include <fstream>
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -94,6 +95,11 @@ private:
     VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
     void CreateSwapChain();
     void CreateImmageViews();
+    void CreateGraphicsPipeline();
+    VkShaderModule CreateShaderModule(const std::vector<char>& code);
+    void CreateRenderPass();
+
+    std::vector<char> ReadFile(const std::string& filename);
 
     static VKAPI_ATTR VkBool32 DebugReportCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
 
@@ -111,6 +117,9 @@ private:
     VkFormat m_swapChainImageFormat;
     VkExtent2D m_swapChainExtent;
     std::vector<VkImageView> m_swapChainImageViews;
+    VkRenderPass m_renderPass;
+    VkPipelineLayout m_pipelineLayout;
+    VkPipeline m_graphicsPipeline;
 #ifdef NDEBUG
     const bool m_enableValidationLayers = false;
 #else
