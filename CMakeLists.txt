@@ -38,3 +38,41 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(glm)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE glm::glm)
+
+find_program(GLSLC glslc REQUIRED)
+
+function(compile_shaders TARGET_NAME SHADER_DIR OUTPUT_DIR)
+    file(MAKE_DIRECTORY ${OUTPUT_DIR})
+
+    file(GLOB SHADERS
+            "${SHADER_DIR}/*.vert"
+            "${SHADER_DIR}/*.frag"
+            "${SHADER_DIR}/*.comp"
+            "${SHADER_DIR}/*.geom"
+            "${SHADER_DIR}/*.tesc"
+            "${SHADER_DIR}/*.tese"
+    )
+
+    set(OUTPUT_FILES "")
+    foreach(SHADER ${SHADERS})
+        get_filename_component(NAME_WE ${SHADER} NAME_WE)
+        set(OUTPUT_FILE "${OUTPUT_DIR}/${NAME_WE}.spv")
+
+        add_custom_command(
+                OUTPUT ${OUTPUT_FILE}
+                COMMAND ${GLSLC} "${SHADER}" -o "${OUTPUT_FILE}"
+                DEPENDS "${SHADER}"
+                COMMENT "glslc ${NAME_WE} → ${NAME_WE}.spv"
+                VERBATIM
+        )
+        list(APPEND OUTPUT_FILES ${OUTPUT_FILE})
+    endforeach()
+
+    add_custom_target(${TARGET_NAME}_shaders ALL DEPENDS ${OUTPUT_FILES})
+    add_dependencies(${TARGET_NAME} ${TARGET_NAME}_shaders)
+endfunction()
+
+compile_shaders(${PROJECT_NAME}
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/shaders"
+        "${CMAKE_BINARY_DIR}/shaders"
+)
