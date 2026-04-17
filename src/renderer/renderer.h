@@ -79,6 +79,8 @@ public:
     void Draw();
     void Destroy();
 
+    void SetFramebufferResized(bool resized);
+
     VkDevice GetDevice();
 private:
     void CreateInstance();
@@ -105,6 +107,8 @@ private:
     void CreateCommandPool();
     void CreateCommandBuffers();
     void CreateSyncObjects();
+    void RecreateSwapChain();
+    void CleanupSwapChain();
 
     std::vector<char> ReadFile(const std::string& filename);
 
@@ -135,6 +139,7 @@ private:
     std::vector<VkFence> m_inFlightFences;
     std::vector<VkFence> m_imagesInFlight;
     size_t m_currentFrame = 0;
+    bool m_framebufferResized = false;
 #ifdef NDEBUG
     const bool m_enableValidationLayers = false;
 #else

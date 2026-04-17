@@ -7,7 +7,7 @@ Renderer::Renderer()
 
 Renderer::~Renderer()
 {
-
+    //Destroy();
 }
 
 void Renderer::Init(GLFWwindow *window)
@@ -34,7 +34,18 @@ void Renderer::Draw()
     vkWaitForFences(m_device, 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
 
     uint32_t imageIndex;
-    vkAcquireNextImageKHR(m_device, m_swapChain, UINT64_MAX, m_imageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
+    VkResult result = vkAcquireNextImageKHR(m_device, m_swapChain, UINT64_MAX, m_imageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
+
+    if (result == VK_ERROR_OUT_OF_DATE_KHR)
+    {
+        RecreateSwapChain();
+        return;
+    }
+    else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
+    {
+        throw std::runtime_error("failed to acquire swap chain image!");
+    }
+
 
     if (m_imagesInFlight[imageIndex] != VK_NULL_HANDLE)
         vkWaitForFences(m_device, 1, &m_imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
@@ -72,14 +83,26 @@ void Renderer::Draw()
     presentInfo.pImageIndices = &imageIndex;
     presentInfo.pResults = nullptr;
 
-    vkQueuePresentKHR(m_presentQueue, &presentInfo);
-    vkQueueWaitIdle(m_presentQueue);
+    result = vkQueuePresentKHR(m_presentQueue, &presentInfo);
+
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_framebufferResized)
+    {
+        m_framebufferResized = false;
+        RecreateSwapChain();
+    }
+    else if (result != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to present swap chain image!");
+    }
+
+    vkDeviceWaitIdle(m_device);
 
     m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 void Renderer::Destroy()
 {
+    CleanupSwapChain();
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
     {
         vkDestroySemaphore(m_device, m_renderFinishedSemaphores[i], nullptr);
@@ -100,6 +123,11 @@ void Renderer::Destroy()
         DestroyDebugUtilsMessengerEXT(m_instance, m_debugMessenger, nullptr);
     vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
     vkDestroyInstance(m_instance, nullptr);
+}
+
+void Renderer::SetFramebufferResized(bool resized)
+{
+    m_framebufferResized = resized;
 }
 
 VkDevice Renderer::GetDevice()
@@ -852,6 +880,46 @@ void Renderer::CreateSyncObjects()
         if (vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_imageAvailableSemaphores[i]) != VK_SUCCESS || vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_renderFinishedSemaphores[i]) != VK_SUCCESS || vkCreateFence(m_device, &fenceInfo, nullptr, &m_inFlightFences[i]) != VK_SUCCESS)
             throw std::runtime_error("failed to create synchronization objects for a frame!");
     }
+}
+
+void Renderer::RecreateSwapChain()
+{
+    int width = 0, height = 0;
+    glfwGetFramebufferSize(m_window, &width, &height);
+    while (width == 0 || height == 0)
+    {
+        glfwGetFramebufferSize(m_window, &width, &height);
+        glfwWaitEvents();
+    }
+
+    vkDeviceWaitIdle(m_device);
+
+    CleanupSwapChain();
+
+    CreateSwapChain();
+    CreateImmageViews();
+    CreateRenderPass();
+    CreateGraphicsPipeline();
+    CreateFramebuffers();
+    CreateCommandPool();
+    CreateCommandBuffers();
+}
+
+void Renderer::CleanupSwapChain()
+{
+    for (size_t i = 0; i < m_swapChainFramebuffers.size(); i++)
+        vkDestroyFramebuffer(m_device, m_swapChainFramebuffers[i], nullptr);
+
+    vkFreeCommandBuffers(m_device, m_commandPool, static_cast<uint32_t>(m_commandBuffers.size()), m_commandBuffers.data());
+
+    vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
+    vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
+    vkDestroyRenderPass(m_device, m_renderPass, nullptr);
+
+    for (size_t i = 0; i < m_swapChainImageViews.size(); i++)
+        vkDestroyImageView(m_device, m_swapChainImageViews[i], nullptr);
+
+    vkDestroySwapchainKHR(m_device, m_swapChain, nullptr);
 }
 
 std::vector<char> Renderer::ReadFile(const std::string &filename)

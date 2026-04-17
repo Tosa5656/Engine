@@ -30,6 +30,10 @@ void Window::Init()
     if (!m_window)
         return;
 
+    glfwSetWindowUserPointer(m_window, this);
+
+    glfwSetFramebufferSizeCallback(m_window, FramebufferResizeCallback);
+
     glfwMakeContextCurrent(m_window);
 
     m_renderer.Init(m_window);
@@ -41,4 +45,10 @@ void Window::Init()
     }
 
     vkDeviceWaitIdle(m_renderer.GetDevice());
+}
+
+void Window::FramebufferResizeCallback(GLFWwindow *window, int width, int height)
+{
+    auto app = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
+    app->m_renderer.SetFramebufferResized(true);
 }
