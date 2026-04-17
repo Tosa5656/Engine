@@ -6,6 +6,8 @@ project(${PROJECT_NAME}
         DESCRIPTION "Engine"
         LANGUAGES CXX)
 
+set(CMAKE_CXX_STANDARD 23)
+
 set(PROJECT_SOURCES src/main.cpp
                     src/window/window.cpp
                     src/renderer/renderer.cpp)
