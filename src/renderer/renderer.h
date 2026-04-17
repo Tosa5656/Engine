@@ -76,7 +76,10 @@ public:
     ~Renderer();
 
     void Init(GLFWwindow* window);
+    void Draw();
     void Destroy();
+
+    VkDevice GetDevice();
 private:
     void CreateInstance();
     bool CheckValidationLayersSupport();
@@ -98,6 +101,10 @@ private:
     void CreateGraphicsPipeline();
     VkShaderModule CreateShaderModule(const std::vector<char>& code);
     void CreateRenderPass();
+    void CreateFramebuffers();
+    void CreateCommandPool();
+    void CreateCommandBuffers();
+    void CreateSyncObjects();
 
     std::vector<char> ReadFile(const std::string& filename);
 
@@ -120,6 +127,14 @@ private:
     VkRenderPass m_renderPass;
     VkPipelineLayout m_pipelineLayout;
     VkPipeline m_graphicsPipeline;
+    std::vector<VkFramebuffer> m_swapChainFramebuffers;
+    VkCommandPool m_commandPool;
+    std::vector<VkCommandBuffer> m_commandBuffers;
+    std::vector<VkSemaphore> m_imageAvailableSemaphores;
+    std::vector<VkSemaphore> m_renderFinishedSemaphores;
+    std::vector<VkFence> m_inFlightFences;
+    std::vector<VkFence> m_imagesInFlight;
+    size_t m_currentFrame = 0;
 #ifdef NDEBUG
     const bool m_enableValidationLayers = false;
 #else
@@ -131,5 +146,7 @@ private:
     const std::vector<const char*> m_deviceExtensions = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME
     };
+
+    const int MAX_FRAMES_IN_FLIGHT = 2;
 #endif
 };

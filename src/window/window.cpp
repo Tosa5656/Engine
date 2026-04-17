@@ -36,8 +36,9 @@ void Window::Init()
 
     while (!glfwWindowShouldClose(m_window))
     {
-        glfwSwapBuffers(m_window);
-
         glfwPollEvents();
+        m_renderer.Draw();
     }
+
+    vkDeviceWaitIdle(m_renderer.GetDevice());
 }
