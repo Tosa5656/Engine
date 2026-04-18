@@ -50,5 +50,5 @@ void Window::Init()
 void Window::FramebufferResizeCallback(GLFWwindow *window, int width, int height)
 {
     auto app = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
-    app->m_renderer.SetFramebufferResized(true);2
+    app->m_renderer.SetFramebufferResized(true);
 }

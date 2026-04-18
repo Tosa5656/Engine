@@ -1,6 +1,9 @@
 #include "renderer/renderer.h"
 
-Renderer::Renderer();
+Renderer::Renderer()
+{
+
+}
 
 Renderer::~Renderer()
 {
