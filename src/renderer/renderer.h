@@ -7,11 +7,15 @@
 #include <cstdint>
 #include <fstream>
 #include <array>
+#include <chrono>
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.hpp>
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 static bool is_glfw_initialized = false;
 
@@ -104,6 +108,14 @@ struct Vertex
     }
 };
 
+struct UniformBufferObject
+{
+    glm::mat4 model;
+    glm::mat4 view;
+    glm::mat4 proj;
+};
+
+
 class Renderer
 {
 public:
@@ -118,41 +130,53 @@ public:
 
     VkDevice GetDevice();
 private:
+    // Create functions
     void CreateInstance();
-    bool CheckValidationLayersSupport();
-    std::vector<const char*> GetRequiredExtensions();
-    void SetupDebugMessenger();
-    void PopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
-    void PickPhysicalDevice();
-    bool IsDeviceSuitable(VkPhysicalDevice device);
-    QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device);
     void CreateLogicalDevice();
     void CreateSurface();
-    bool CheckDeviceExtensionSupport(VkPhysicalDevice device);
-    SwapChainSupportDetails QuerySwapChainSupport(VkPhysicalDevice device);
-    VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
-    VkPresentModeKHR ChooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
-    VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
     void CreateSwapChain();
     void CreateImageViews();
     void CreateGraphicsPipeline();
-    VkShaderModule CreateShaderModule(const std::vector<char>& code);
     void CreateRenderPass();
     void CreateFramebuffers();
     void CreateCommandPool();
     void CreateCommandBuffers();
     void CreateSyncObjects();
-    void RecreateSwapChain();
-    void CleanupSwapChain();
-    void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
-    void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
     void CreateVertexBuffer();
     void CreateIndexBuffer();
+    void CreateDescriptorPool();
+    void CreateDescriptorSets();
+    void CreateDescriptorSetLayout();
+    void CreateUniformBuffers();
+    void RecreateSwapChain();
+    void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 
+    // Choose functions
+    SwapChainSupportDetails QuerySwapChainSupport(VkPhysicalDevice device);
+    VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
+    VkPresentModeKHR ChooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
+    VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
+    VkShaderModule CreateShaderModule(const std::vector<char>& code);
+
+    // Check functions
+    bool CheckDeviceExtensionSupport(VkPhysicalDevice device);
+    bool IsDeviceSuitable(VkPhysicalDevice device);
+    bool CheckValidationLayersSupport();
+
+    // Debug
+    void SetupDebugMessenger();
+    void PopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);\
+    static VKAPI_ATTR VkBool32 DebugReportCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
+
+    //Other
+    std::vector<const char*> GetRequiredExtensions();
+    void PickPhysicalDevice();
+    QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device);
     std::vector<char> ReadFile(const std::string& filename);
     uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
-
-    static VKAPI_ATTR VkBool32 DebugReportCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
+    void CleanupSwapChain();
+    void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
+    void UpdateUniformBuffer(uint32_t currentImage);
 
     GLFWwindow* m_window;
 
@@ -184,16 +208,25 @@ private:
     VkDeviceMemory m_vertexBufferMemory;
     VkBuffer m_indexBuffer;
     VkDeviceMemory m_indexBufferMemory;
+    VkDescriptorSetLayout m_descriptorSetLayout;
+    std::vector<VkBuffer> m_uniformBuffers;
+    std::vector<VkDeviceMemory> m_uniformBuffersMemory;
+    VkDescriptorPool m_descriptorPool;
+    std::vector<VkDescriptorSet> m_descriptorSets;
+
 #ifdef NDEBUG
     const bool m_enableValidationLayers = false;
 #else
     const bool m_enableValidationLayers = true;
+#endif
+
     const std::vector<const char*> m_validationLayers = {
         "VK_LAYER_KHRONOS_validation"
     };
 
     const std::vector<const char*> m_deviceExtensions = {
-        VK_KHR_SWAPCHAIN_EXTENSION_NAME
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+        VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME
     };
 
     const int MAX_FRAMES_IN_FLIGHT = 2;
@@ -208,5 +241,4 @@ private:
     const std::vector<uint16_t> indices = {
         0, 1, 2, 2, 3, 0
     };
-#endif
 };
