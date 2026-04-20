@@ -16,7 +16,7 @@ Window::Window(std::string title, int width, int height)
 
 Window::~Window()
 {
-
+    //Destroy later
 }
 
 void Window::Init()
