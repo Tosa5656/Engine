@@ -18,6 +18,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <vk_mem_alloc.h>
 
+#include <renderer/vulkan/instance.h>
+
 static bool is_glfw_initialized = false;
 
 static void InitGLFW()
@@ -40,22 +42,6 @@ static void DestroyGLFW()
     }
     else
         return;
-}
-
-inline VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger)
-{
-    auto func = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
-    if (func != nullptr)
-        return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
-    else
-        return VK_ERROR_EXTENSION_NOT_PRESENT;
-}
-
-inline void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator)
-{
-    auto func = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
-    if (func != nullptr)
-        func(instance, debugMessenger, pAllocator);
 }
 
 struct QueueFamilyIndices
@@ -132,7 +118,6 @@ public:
     VkDevice GetDevice();
 private:
     // Create functions
-    void CreateInstance();
     void CreateLogicalDevice();
     void CreateSurface();
     void CreateSwapChain();
@@ -162,15 +147,8 @@ private:
     // Check functions
     bool CheckDeviceExtensionSupport(VkPhysicalDevice device);
     bool IsDeviceSuitable(VkPhysicalDevice device);
-    bool CheckValidationLayersSupport();
-
-    // Debug
-    void SetupDebugMessenger();
-    void PopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);\
-    static VKAPI_ATTR VkBool32 DebugReportCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
 
     //Other
-    std::vector<const char*> GetRequiredExtensions();
     void PickPhysicalDevice();
     QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device);
     std::vector<char> ReadFile(const std::string& filename);
@@ -181,8 +159,8 @@ private:
 
     GLFWwindow* m_window;
 
-    VkInstance m_instance;
-    VkDebugUtilsMessengerEXT m_debugMessenger;
+    Instance m_instance;
+
     VkPhysicalDevice m_physicalDevice;
     VkDevice m_device;
     VkQueue m_graphicsQueue;
@@ -213,16 +191,6 @@ private:
     std::vector<VkDescriptorSet> m_descriptorSets;
     VkPipelineRenderingCreateInfo m_pipelineRenderingCreateInfo{};
     VmaAllocator m_allocator = VK_NULL_HANDLE;
-
-#ifdef NDEBUG
-    const bool m_enableValidationLayers = false;
-#else
-    const bool m_enableValidationLayers = true;
-#endif
-
-    const std::vector<const char*> m_validationLayers = {
-        "VK_LAYER_KHRONOS_validation"
-    };
 
     const std::vector<const char*> m_deviceExtensions = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,

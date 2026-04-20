@@ -11,7 +11,8 @@ set(CMAKE_CXX_STANDARD 23)
 set(PROJECT_SOURCES src/main.cpp
                     src/window/window.cpp
                     src/renderer/renderer.cpp
-                    src/vma/vma_impl.cpp)
+                    src/vma/vma_impl.cpp
+                    src/renderer/vulkan/instance.cpp)
 add_executable(${PROJECT_NAME} ${PROJECT_SOURCES})
 include_directories(src/)
 
