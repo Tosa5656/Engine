@@ -137,8 +137,6 @@ private:
     void CreateSwapChain();
     void CreateImageViews();
     void CreateGraphicsPipeline();
-    void CreateRenderPass();
-    void CreateFramebuffers();
     void CreateCommandPool();
     void CreateCommandBuffers();
     void CreateSyncObjects();
@@ -150,6 +148,7 @@ private:
     void CreateUniformBuffers();
     void RecreateSwapChain();
     void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
+    void CreateRenderFinishedSemaphores();
 
     // Choose functions
     SwapChainSupportDetails QuerySwapChainSupport(VkPhysicalDevice device);
@@ -192,16 +191,13 @@ private:
     VkFormat m_swapChainImageFormat;
     VkExtent2D m_swapChainExtent;
     std::vector<VkImageView> m_swapChainImageViews;
-    VkRenderPass m_renderPass;
     VkPipelineLayout m_pipelineLayout;
     VkPipeline m_graphicsPipeline;
-    std::vector<VkFramebuffer> m_swapChainFramebuffers;
     VkCommandPool m_commandPool;
     std::vector<VkCommandBuffer> m_commandBuffers;
     std::vector<VkSemaphore> m_imageAvailableSemaphores;
     std::vector<VkSemaphore> m_renderFinishedSemaphores;
     std::vector<VkFence> m_inFlightFences;
-    std::vector<VkFence> m_imagesInFlight;
     size_t m_currentFrame = 0;
     bool m_framebufferResized = false;
     VkBuffer m_vertexBuffer;
@@ -213,6 +209,7 @@ private:
     std::vector<VkDeviceMemory> m_uniformBuffersMemory;
     VkDescriptorPool m_descriptorPool;
     std::vector<VkDescriptorSet> m_descriptorSets;
+    VkPipelineRenderingCreateInfo m_pipelineRenderingCreateInfo{};
 
 #ifdef NDEBUG
     const bool m_enableValidationLayers = false;
