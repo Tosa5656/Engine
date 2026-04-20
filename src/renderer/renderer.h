@@ -16,6 +16,7 @@
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <vk_mem_alloc.h>
 
 static bool is_glfw_initialized = false;
 
@@ -147,8 +148,9 @@ private:
     void CreateDescriptorSetLayout();
     void CreateUniformBuffers();
     void RecreateSwapChain();
-    void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
+    void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkBuffer& buffer, VmaAllocation& allocation);
     void CreateRenderFinishedSemaphores();
+    void CreateAllocator();
 
     // Choose functions
     SwapChainSupportDetails QuerySwapChainSupport(VkPhysicalDevice device);
@@ -201,15 +203,16 @@ private:
     size_t m_currentFrame = 0;
     bool m_framebufferResized = false;
     VkBuffer m_vertexBuffer;
-    VkDeviceMemory m_vertexBufferMemory;
+    VmaAllocation m_vertexBufferAllocation = VK_NULL_HANDLE;
     VkBuffer m_indexBuffer;
-    VkDeviceMemory m_indexBufferMemory;
+    VmaAllocation m_indexBufferAllocation = VK_NULL_HANDLE;
     VkDescriptorSetLayout m_descriptorSetLayout;
     std::vector<VkBuffer> m_uniformBuffers;
-    std::vector<VkDeviceMemory> m_uniformBuffersMemory;
+    std::vector<VmaAllocation> m_uniformAllocations;
     VkDescriptorPool m_descriptorPool;
     std::vector<VkDescriptorSet> m_descriptorSets;
     VkPipelineRenderingCreateInfo m_pipelineRenderingCreateInfo{};
+    VmaAllocator m_allocator = VK_NULL_HANDLE;
 
 #ifdef NDEBUG
     const bool m_enableValidationLayers = false;

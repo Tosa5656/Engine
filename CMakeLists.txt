@@ -10,7 +10,8 @@ set(CMAKE_CXX_STANDARD 23)
 
 set(PROJECT_SOURCES src/main.cpp
                     src/window/window.cpp
-                    src/renderer/renderer.cpp)
+                    src/renderer/renderer.cpp
+                    src/vma/vma_impl.cpp)
 add_executable(${PROJECT_NAME} ${PROJECT_SOURCES})
 include_directories(src/)
 
@@ -40,6 +41,16 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(glm)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE glm::glm)
+
+FetchContent_Declare(
+        VulkanMemoryAllocator
+        GIT_REPOSITORY https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator
+        GIT_TAG        master
+)
+
+FetchContent_MakeAvailable(VulkanMemoryAllocator)
+
+target_link_libraries(${PROJECT_NAME} PRIVATE GPUOpen::VulkanMemoryAllocator)
 
 find_program(GLSLC glslc REQUIRED)
 

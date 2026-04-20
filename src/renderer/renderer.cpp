@@ -16,6 +16,7 @@ void Renderer::Init(GLFWwindow *window)
     CreateSurface();
     PickPhysicalDevice();
     CreateLogicalDevice();
+    CreateAllocator();
     CreateSwapChain();
     CreateImageViews();
     CreateDescriptorSetLayout();
@@ -179,10 +180,19 @@ void Renderer::Destroy()
 
     vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
 
-    vkDestroyBuffer(m_device, m_indexBuffer, nullptr);
-    vkFreeMemory(m_device, m_indexBufferMemory, nullptr);
-    vkDestroyBuffer(m_device, m_vertexBuffer, nullptr);
-    vkFreeMemory(m_device, m_vertexBufferMemory, nullptr);
+    if (m_indexBuffer != VK_NULL_HANDLE)
+    {
+        vmaDestroyBuffer(m_allocator, m_indexBuffer, m_indexBufferAllocation);
+        m_indexBuffer = VK_NULL_HANDLE;
+        m_indexBufferAllocation = VK_NULL_HANDLE;
+    }
+
+    if (m_vertexBuffer != VK_NULL_HANDLE)
+    {
+        vmaDestroyBuffer(m_allocator, m_vertexBuffer, m_vertexBufferAllocation);
+        m_vertexBuffer = VK_NULL_HANDLE;
+        m_vertexBufferAllocation = VK_NULL_HANDLE;
+    }
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
     {
@@ -194,6 +204,12 @@ void Renderer::Destroy()
     }
 
     vkDestroyCommandPool(m_device, m_commandPool, nullptr);
+
+    if (m_allocator != VK_NULL_HANDLE)
+    {
+        vmaDestroyAllocator(m_allocator);
+        m_allocator = VK_NULL_HANDLE;
+    }
 
     vkDestroyDevice(m_device, nullptr);
 
@@ -929,9 +945,14 @@ void Renderer::CleanupSwapChain()
 
     for (size_t i = 0; i < m_uniformBuffers.size(); i++)
     {
-        vkDestroyBuffer(m_device, m_uniformBuffers[i], nullptr);
-        vkFreeMemory(m_device, m_uniformBuffersMemory[i], nullptr);
+        if (m_uniformBuffers[i] != VK_NULL_HANDLE)
+        {
+            vmaDestroyBuffer(m_allocator, m_uniformBuffers[i], m_uniformAllocations[i]);
+            m_uniformBuffers[i] = VK_NULL_HANDLE;
+            m_uniformAllocations[i] = VK_NULL_HANDLE;
+        }
     }
+
     vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
 
     for (auto semaphore : m_renderFinishedSemaphores)
@@ -941,14 +962,13 @@ void Renderer::CleanupSwapChain()
     m_renderFinishedSemaphores.clear();
     m_swapChainImageViews.clear();
     m_uniformBuffers.clear();
-    m_uniformBuffersMemory.clear();
     m_descriptorSets.clear();
     m_graphicsPipeline = VK_NULL_HANDLE;
     m_pipelineLayout = VK_NULL_HANDLE;
     m_swapChain = VK_NULL_HANDLE;
 }
 
-void Renderer::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
+void Renderer::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkBuffer& buffer, VmaAllocation& allocation)
 {
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -956,22 +976,13 @@ void Renderer::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemor
     bufferInfo.usage = usage;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    if (vkCreateBuffer(m_device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS)
-        throw std::runtime_error("failed to create buffer!");
+    VmaAllocationCreateInfo allocInfo{};
+    allocInfo.usage = memoryUsage;
 
-    VkMemoryRequirements memRequirements;
-    vkGetBufferMemoryRequirements(m_device, buffer, &memRequirements);
-
-    VkMemoryAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = FindMemoryType(memRequirements.memoryTypeBits, properties);
-
-    // TODO: Create custom memory allocator
-    if (vkAllocateMemory(m_device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS)
-        throw std::runtime_error("failed to allocate buffer memory!");
-
-    vkBindBufferMemory(m_device, buffer, bufferMemory, 0);
+    if (vmaCreateBuffer(m_allocator, &bufferInfo, &allocInfo, &buffer, &allocation, nullptr) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create buffer with VMA!");
+    }
 }
 
 void Renderer::CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
@@ -1015,19 +1026,18 @@ void Renderer::CreateVertexBuffer()
     VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 
     VkBuffer stagingBuffer;
-    VkDeviceMemory stagingBufferMemory;
-    CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+    VmaAllocation stagingAllocation;
+    CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, stagingBuffer, stagingAllocation);
 
     void* data;
-    vkMapMemory(m_device, stagingBufferMemory, 0, bufferSize, 0, &data);
-    memcpy(data, vertices.data(), (size_t) bufferSize);
-    vkUnmapMemory(m_device, stagingBufferMemory);
+    vmaMapMemory(m_allocator, stagingAllocation, &data);
+    memcpy(data, vertices.data(), (size_t)bufferSize);
+    vmaUnmapMemory(m_allocator, stagingAllocation);
 
-    CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_vertexBuffer, m_vertexBufferMemory);
+    CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY, m_vertexBuffer, m_vertexBufferAllocation);
     CopyBuffer(stagingBuffer, m_vertexBuffer, bufferSize);
 
-    vkDestroyBuffer(m_device, stagingBuffer, nullptr);
-    vkFreeMemory(m_device, stagingBufferMemory, nullptr);
+    vmaDestroyBuffer(m_allocator, stagingBuffer, stagingAllocation);
 }
 
 void Renderer::CreateIndexBuffer()
@@ -1035,20 +1045,19 @@ void Renderer::CreateIndexBuffer()
     VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
 
     VkBuffer stagingBuffer;
-    VkDeviceMemory stagingBufferMemory;
-    CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+    VmaAllocation stagingAllocation;
+    CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, stagingBuffer, stagingAllocation);
 
     void* data;
-    vkMapMemory(m_device, stagingBufferMemory, 0, bufferSize, 0, &data);
-    memcpy(data, indices.data(), (size_t) bufferSize);
-    vkUnmapMemory(m_device, stagingBufferMemory);
+    vmaMapMemory(m_allocator, stagingAllocation, &data);
+    memcpy(data, indices.data(), (size_t)bufferSize);
+    vmaUnmapMemory(m_allocator, stagingAllocation);
 
-    CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_indexBuffer, m_indexBufferMemory);
+    CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY, m_indexBuffer, m_indexBufferAllocation);
 
     CopyBuffer(stagingBuffer, m_indexBuffer, bufferSize);
 
-    vkDestroyBuffer(m_device, stagingBuffer, nullptr);
-    vkFreeMemory(m_device, stagingBufferMemory, nullptr);
+    vmaDestroyBuffer(m_allocator, stagingBuffer, stagingAllocation);
 }
 
 void Renderer::CreateDescriptorSetLayout()
@@ -1076,11 +1085,11 @@ void Renderer::CreateUniformBuffers()
     VkDeviceSize bufferSize = sizeof(UniformBufferObject);
 
     m_uniformBuffers.resize(m_swapChainImages.size());
-    m_uniformBuffersMemory.resize(m_swapChainImages.size());
+    m_uniformAllocations.resize(m_swapChainImages.size());
 
     for (size_t i = 0; i < m_swapChainImages.size(); i++)
     {
-        CreateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, m_uniformBuffers[i], m_uniformBuffersMemory[i]);
+        CreateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, m_uniformBuffers[i], m_uniformAllocations[i]);
     }
 }
 
@@ -1098,9 +1107,9 @@ void Renderer::UpdateUniformBuffer(uint32_t currentImage)
     ubo.proj[1][1] *= -1;
 
     void* data;
-    vkMapMemory(m_device, m_uniformBuffersMemory[currentImage], 0, sizeof(ubo), 0, &data);
+    vmaMapMemory(m_allocator, m_uniformAllocations[currentImage], &data);
     memcpy(data, &ubo, sizeof(ubo));
-    vkUnmapMemory(m_device, m_uniformBuffersMemory[currentImage]);
+    vmaUnmapMemory(m_allocator, m_uniformAllocations[currentImage]);
 }
 
 void Renderer::CreateDescriptorPool()
@@ -1180,6 +1189,18 @@ void Renderer::CreateRenderFinishedSemaphores()
             throw std::runtime_error("failed to create render finished semaphore!");
         }
     }
+}
+
+void Renderer::CreateAllocator()
+{
+    VmaAllocatorCreateInfo allocatorInfo = {};
+    allocatorInfo.physicalDevice = m_physicalDevice;
+    allocatorInfo.device = m_device;
+    allocatorInfo.instance = m_instance;
+    allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_4;
+
+    if (vmaCreateAllocator(&allocatorInfo, &m_allocator) != VK_SUCCESS)
+        throw std::runtime_error("failed to create VMA allocator!");
 }
 
 std::vector<char> Renderer::ReadFile(const std::string &filename)
