@@ -20,6 +20,7 @@ public:
     void CreateDescriptorPool(Device* device, SwapChain* swapChain);
     void CreateDescriptorSets(Device* device, SwapChain* swapChain);
     void CreateDescriptorSetLayout(Device* device);
+    void Cleanup(Device* device);
 
     VkDescriptorPool GetDescriptorPool();
     std::vector<VkDescriptorSet> GetDescriptorSets();

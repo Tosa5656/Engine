@@ -99,3 +99,18 @@ std::vector<VkBuffer>& DescriptorsManager::GetUniformBuffers()
 {
     return m_uniformBuffers;
 }
+
+void DescriptorsManager::Cleanup(Device* device)
+{
+    if (m_descriptorPool != VK_NULL_HANDLE)
+    {
+        vkDestroyDescriptorPool(device->GetDevice(), m_descriptorPool, nullptr);
+        m_descriptorPool = VK_NULL_HANDLE;
+    }
+
+    if (m_descriptorSetLayout != VK_NULL_HANDLE)
+    {
+        vkDestroyDescriptorSetLayout(device->GetDevice(), m_descriptorSetLayout, nullptr);
+        m_descriptorSetLayout = VK_NULL_HANDLE;
+    }
+}

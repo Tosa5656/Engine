@@ -125,51 +125,22 @@ void SwapChain::CreateImageViews(Device* device)
     }
 }
 
-// TODO: Connect vars after implementation
 void SwapChain::CleanupSwapChain(Device* device)
 {
-    // TEMP!!
-    VkPipelineLayout m_pipelineLayout = VK_NULL_HANDLE;
-    VkPipeline m_graphicsPipeline = VK_NULL_HANDLE;
-    std::vector<VkBuffer> m_uniformBuffers;
-    VmaAllocator m_allocator = VK_NULL_HANDLE;
-    std::vector<VmaAllocation> m_uniformAllocations;
-    VkDescriptorPool m_descriptorPool = VK_NULL_HANDLE;
-    std::vector<VkSemaphore> m_renderFinishedSemaphores;
-
     vkDeviceWaitIdle(device->GetDevice());
-
-    vkDestroyPipeline(device->GetDevice(), m_graphicsPipeline, nullptr);
-    vkDestroyPipelineLayout(device->GetDevice(), m_pipelineLayout, nullptr);
 
     for (auto view : m_swapChainImageViews)
         vkDestroyImageView(device->GetDevice(), view, nullptr);
 
-    vkDestroySwapchainKHR(device->GetDevice(), m_swapChain, nullptr);
+    m_swapChainImageViews.clear();
 
-    for (size_t i = 0; i < m_uniformBuffers.size(); i++)
+    if (m_swapChain != VK_NULL_HANDLE)
     {
-        if (m_uniformBuffers[i] != VK_NULL_HANDLE)
-        {
-            vmaDestroyBuffer(m_allocator, m_uniformBuffers[i], m_uniformAllocations[i]);
-            m_uniformBuffers[i] = VK_NULL_HANDLE;
-            m_uniformAllocations[i] = VK_NULL_HANDLE;
-        }
+        vkDestroySwapchainKHR(device->GetDevice(), m_swapChain, nullptr);
+        m_swapChain = VK_NULL_HANDLE;
     }
 
-    vkDestroyDescriptorPool(device->GetDevice(), m_descriptorPool, nullptr);
-
-    for (auto semaphore : m_renderFinishedSemaphores)
-        if (semaphore != VK_NULL_HANDLE)
-            vkDestroySemaphore(device->GetDevice(), semaphore, nullptr);
-
-    //m_renderFinishedSemaphores.clear();
-    m_swapChainImageViews.clear();
-    //m_uniformBuffers.clear();
-    //m_descriptorSets.clear();
-    //m_graphicsPipeline = VK_NULL_HANDLE;
-    //m_pipelineLayout = VK_NULL_HANDLE;
-    m_swapChain = VK_NULL_HANDLE;
+    m_swapChainImages.clear();
 }
 
 VkSurfaceKHR SwapChain::GetSurface()

@@ -187,6 +187,20 @@ VkPipelineLayout PipelineManager::GetPipelineLayout()
     return m_pipelineLayout;
 }
 
+void PipelineManager::Shutdown(Device* device)
+{
+    if (m_graphicsPipeline != VK_NULL_HANDLE)
+    {
+        vkDestroyPipeline(device->GetDevice(), m_graphicsPipeline, nullptr);
+        m_graphicsPipeline = VK_NULL_HANDLE;
+    }
+    if (m_pipelineLayout != VK_NULL_HANDLE)
+    {
+        vkDestroyPipelineLayout(device->GetDevice(), m_pipelineLayout, nullptr);
+        m_pipelineLayout = VK_NULL_HANDLE;
+    }
+}
+
 std::vector<char> PipelineManager::ReadFile(const std::string &filename)
 {
     std::ifstream file(filename, std::ios::ate | std::ios::binary);

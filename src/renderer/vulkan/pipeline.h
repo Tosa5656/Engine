@@ -21,7 +21,8 @@ public:
     ~PipelineManager();
 
     void Create(Device* device, SwapChain* swapChain, VkDescriptorSetLayout descriptorSetLayout);
-    VkShaderModule CreateShaderModule(const std::vector<char> &code, Device* device); // TODO: Transfer CreateShaderModule and ReadFile to Shader class
+    void Shutdown(Device* device);
+    VkShaderModule CreateShaderModule(const std::vector<char> &code, Device* device);
 
     VkPipeline GetGraphicsPipeline();
     VkPipelineLayout GetPipelineLayout();

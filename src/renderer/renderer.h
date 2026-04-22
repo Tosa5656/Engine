@@ -87,7 +87,7 @@ private:
     ResourceManager m_resourceManager;
 
     std::array<VkSemaphore, MAX_FRAMES_IN_FLIGHT> m_imageAvailableSemaphores;
-    std::array<VkSemaphore, MAX_FRAMES_IN_FLIGHT> m_renderFinishedSemaphores;
+    std::vector<VkSemaphore> m_renderFinishedSemaphores;
     std::array<VkFence, MAX_FRAMES_IN_FLIGHT> m_inFlightFences;
     std::vector<VkFence> m_imagesInFlight;
     size_t m_currentFrame = 0;

@@ -157,7 +157,7 @@ void Renderer::Draw()
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &cmd;
 
-    VkSemaphore signalSemaphores[] = { m_renderFinishedSemaphores[m_currentFrame] };
+    VkSemaphore signalSemaphores[] = { m_renderFinishedSemaphores[imageIndex] };
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
@@ -209,9 +209,17 @@ void Renderer::Destroy()
     }
 
     m_swapChain.CleanupSwapChain(&m_device);
+    m_pipelineManager.Shutdown(&m_device);
 
-    vkDestroyDescriptorSetLayout(m_device.GetDevice(), m_descriptorManager.GetDescriptorSetLayout(), nullptr);
-    vkDestroyDescriptorPool(m_device.GetDevice(), m_descriptorManager.GetDescriptorPool(), nullptr);
+    for (size_t i = 0; i < m_descriptorManager.GetUniformBuffers().size(); i++)
+    {
+        if (m_descriptorManager.GetUniformBuffers()[i] != VK_NULL_HANDLE)
+        {
+            vmaDestroyBuffer(m_resourceManager.GetAllocator(), m_descriptorManager.GetUniformBuffers()[i], m_resourceManager.GetUniformBufferAllocation()[i]);
+        }
+    }
+
+    m_descriptorManager.Cleanup(&m_device);
 
     if (m_resourceManager.GetIndexBuffer() != VK_NULL_HANDLE)
     {
@@ -284,11 +292,22 @@ void Renderer::CreateSyncObjects()
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
+    uint32_t imageCount = static_cast<uint32_t>(m_swapChain.GetSwapChainImages().size());
+
+    m_renderFinishedSemaphores.resize(imageCount);
+
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
     {
         if (vkCreateSemaphore(m_device.GetDevice(), &semInfo, nullptr, &m_imageAvailableSemaphores[i]) != VK_SUCCESS ||
-            vkCreateSemaphore(m_device.GetDevice(), &semInfo, nullptr, &m_renderFinishedSemaphores[i]) != VK_SUCCESS ||
             vkCreateFence(m_device.GetDevice(), &fenceInfo, nullptr, &m_inFlightFences[i]) != VK_SUCCESS)
+        {
+            throw std::runtime_error("failed to create synchronization objects!");
+        }
+    }
+
+    for (size_t i = 0; i < imageCount; i++)
+    {
+        if (vkCreateSemaphore(m_device.GetDevice(), &semInfo, nullptr, &m_renderFinishedSemaphores[i]) != VK_SUCCESS)
         {
             throw std::runtime_error("failed to create synchronization objects!");
         }
