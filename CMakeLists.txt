@@ -12,7 +12,13 @@ set(PROJECT_SOURCES src/main.cpp
                     src/window/window.cpp
                     src/renderer/renderer.cpp
                     src/vma/vma_impl.cpp
-                    src/renderer/vulkan/instance.cpp)
+                    src/renderer/vulkan/instance.cpp
+                    src/renderer/vulkan/device.cpp
+                    src/renderer/vulkan/swapchain.cpp
+                    src/renderer/vulkan/commandbuffer.cpp
+                    src/renderer/vulkan/pipeline.cpp
+                    src/renderer/vulkan/descriptors.cpp
+                    src/renderer/vulkan/resources.cpp)
 add_executable(${PROJECT_NAME} ${PROJECT_SOURCES})
 include_directories(src/)
 
