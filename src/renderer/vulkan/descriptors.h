@@ -11,24 +11,30 @@
 #include <renderer/vulkan/device.h>
 #include <renderer/vulkan/swapchain.h>
 
+class ResourceManager;
+
 class DescriptorsManager
 {
 public:
     DescriptorsManager();
     ~DescriptorsManager();
 
-    void CreateDescriptorPool(Device* device, SwapChain* swapChain);
-    void CreateDescriptorSets(Device* device, SwapChain* swapChain);
-    void CreateDescriptorSetLayout(Device* device);
-    void Cleanup(Device* device);
+    void Init(Device* device, SwapChain* swapChain, ResourceManager* resourceManager);
+    void Cleanup();
+
+    void CreateDescriptorPool();
+    void CreateDescriptorSets();
+    void CreateDescriptorSetLayout();
 
     VkDescriptorPool GetDescriptorPool();
     std::vector<VkDescriptorSet> GetDescriptorSets();
     VkDescriptorSetLayout GetDescriptorSetLayout();
-    std::vector<VkBuffer>& GetUniformBuffers(); // TODO: transfer to resource manager class
 private:
+    Device* m_device;
+    SwapChain* m_swapChain;
+    ResourceManager* m_resourceManager;
+
     VkDescriptorPool m_descriptorPool;
     std::vector<VkDescriptorSet> m_descriptorSets;
     VkDescriptorSetLayout m_descriptorSetLayout;
-    std::vector<VkBuffer> m_uniformBuffers; // TODO: Transfer to new class
 };

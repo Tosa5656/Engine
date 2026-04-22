@@ -4,44 +4,66 @@
 DescriptorsManager::DescriptorsManager() {}
 DescriptorsManager::~DescriptorsManager() {}
 
-void DescriptorsManager::CreateDescriptorPool(Device* device, SwapChain* swapChain)
+void DescriptorsManager::Init(Device *device, SwapChain *swapChain, ResourceManager *resourceManager)
+{
+    m_device = device;
+    m_swapChain = swapChain;
+    m_resourceManager = resourceManager;
+}
+
+void DescriptorsManager::Cleanup()
+{
+    if (m_descriptorPool != VK_NULL_HANDLE)
+    {
+        vkDestroyDescriptorPool(m_device->GetDevice(), m_descriptorPool, nullptr);
+        m_descriptorPool = VK_NULL_HANDLE;
+    }
+
+    if (m_descriptorSetLayout != VK_NULL_HANDLE)
+    {
+        vkDestroyDescriptorSetLayout(m_device->GetDevice(), m_descriptorSetLayout, nullptr);
+        m_descriptorSetLayout = VK_NULL_HANDLE;
+    }
+}
+
+void DescriptorsManager::CreateDescriptorPool()
 {
     VkDescriptorPoolSize poolSize{};
     poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSize.descriptorCount = static_cast<uint32_t>(swapChain->GetSwapChainImages().size());
+    poolSize.descriptorCount = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size());
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.poolSizeCount = 1;
     poolInfo.pPoolSizes = &poolSize;
-    poolInfo.maxSets = static_cast<uint32_t>(swapChain->GetSwapChainImages().size());
+    poolInfo.maxSets = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size());
 
-    if (vkCreateDescriptorPool(device->GetDevice(), &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS)
+    if (vkCreateDescriptorPool(m_device->GetDevice(), &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to create descriptor pool!");
     }
 }
 
-void DescriptorsManager::CreateDescriptorSets(Device* device, SwapChain* swapChain)
+void DescriptorsManager::CreateDescriptorSets()
 {
-    std::vector<VkDescriptorSetLayout> layouts(swapChain->GetSwapChainImages().size(), m_descriptorSetLayout);
+    std::vector<VkDescriptorSetLayout> layouts(m_swapChain->GetSwapChainImages().size(), m_descriptorSetLayout);
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocInfo.descriptorPool = m_descriptorPool;
-    allocInfo.descriptorSetCount = static_cast<uint32_t>(swapChain->GetSwapChainImages().size());
+    allocInfo.descriptorSetCount = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size());
     allocInfo.pSetLayouts = layouts.data();
 
-    m_descriptorSets.resize(swapChain->GetSwapChainImages().size());
+    m_descriptorSets.resize(m_swapChain->GetSwapChainImages().size());
 
-    if (vkAllocateDescriptorSets(device->GetDevice(), &allocInfo, m_descriptorSets.data()) != VK_SUCCESS)
+    if (vkAllocateDescriptorSets(m_device->GetDevice(), &allocInfo, m_descriptorSets.data()) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to allocate descriptor sets!");
     }
 
-    for (size_t i = 0; i < swapChain->GetSwapChainImages().size(); i++)
+    for (size_t i = 0; i < m_swapChain->GetSwapChainImages().size(); i++)
     {
         VkDescriptorBufferInfo bufferInfo{};
-        bufferInfo.buffer = m_uniformBuffers[i];
+        bufferInfo.buffer = m_resourceManager->GetUniformBuffers()[i];
         bufferInfo.offset = 0;
         bufferInfo.range = sizeof(UniformBufferObject);
 
@@ -56,11 +78,11 @@ void DescriptorsManager::CreateDescriptorSets(Device* device, SwapChain* swapCha
         descriptorWrite.pImageInfo = nullptr;
         descriptorWrite.pTexelBufferView = nullptr;
 
-        vkUpdateDescriptorSets(device->GetDevice(), 1, &descriptorWrite, 0, nullptr);
+        vkUpdateDescriptorSets(m_device->GetDevice(), 1, &descriptorWrite, 0, nullptr);
     }
 }
 
-void DescriptorsManager::CreateDescriptorSetLayout(Device* device)
+void DescriptorsManager::CreateDescriptorSetLayout()
 {
     VkDescriptorSetLayoutBinding uboLayoutBinding{};
     uboLayoutBinding.binding = 0;
@@ -74,7 +96,7 @@ void DescriptorsManager::CreateDescriptorSetLayout(Device* device)
     layoutInfo.bindingCount = 1;
     layoutInfo.pBindings = &uboLayoutBinding;
 
-    if (vkCreateDescriptorSetLayout(device->GetDevice(), &layoutInfo, nullptr, &m_descriptorSetLayout) != VK_SUCCESS)
+    if (vkCreateDescriptorSetLayout(m_device->GetDevice(), &layoutInfo, nullptr, &m_descriptorSetLayout) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to create descriptor set layout!");
     }
@@ -93,24 +115,4 @@ std::vector<VkDescriptorSet> DescriptorsManager::GetDescriptorSets()
 VkDescriptorSetLayout DescriptorsManager::GetDescriptorSetLayout()
 {
     return m_descriptorSetLayout;
-}
-
-std::vector<VkBuffer>& DescriptorsManager::GetUniformBuffers()
-{
-    return m_uniformBuffers;
-}
-
-void DescriptorsManager::Cleanup(Device* device)
-{
-    if (m_descriptorPool != VK_NULL_HANDLE)
-    {
-        vkDestroyDescriptorPool(device->GetDevice(), m_descriptorPool, nullptr);
-        m_descriptorPool = VK_NULL_HANDLE;
-    }
-
-    if (m_descriptorSetLayout != VK_NULL_HANDLE)
-    {
-        vkDestroyDescriptorSetLayout(device->GetDevice(), m_descriptorSetLayout, nullptr);
-        m_descriptorSetLayout = VK_NULL_HANDLE;
-    }
 }

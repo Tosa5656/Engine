@@ -20,6 +20,7 @@
 
 #include <renderer/vulkan/instance.h>
 #include <renderer/vulkan/device.h>
+#include <renderer/vulkan/surface.h>
 #include <renderer/vulkan/swapchain.h>
 #include <renderer/vulkan/commandbuffer.h>
 #include <renderer/vulkan/pipeline.h>
@@ -80,6 +81,7 @@ private:
 
     Instance m_instance;
     Device m_device;
+    Surface m_surface;
     SwapChain m_swapChain;
     CommandBufferManager m_commandBufferManager;
     PipelineManager m_pipelineManager;

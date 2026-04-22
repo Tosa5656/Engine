@@ -3,21 +3,12 @@
 #include <vector>
 #include <stdexcept>
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
 #include <vulkan/vulkan.h>
 #include <vk_mem_alloc.h>
 
-#include <renderer/vulkan/instance.h>
 #include <renderer/vulkan/device.h>
 #include <renderer/vulkan/commandbuffer.h>
-
-struct SwapChainSupportDetails
-{
-    VkSurfaceCapabilitiesKHR capabilities;
-    std::vector<VkSurfaceFormatKHR> formats;
-    std::vector<VkPresentModeKHR> presentModes;
-};
+#include <renderer/vulkan/surface.h>
 
 class SwapChain
 {
@@ -25,27 +16,23 @@ public:
     SwapChain();
     ~SwapChain();
 
-    void CreateSurface(Instance* instance, GLFWwindow* window);
-    void CreateSwapChain(Device* device, GLFWwindow* window);
-    void RecreateSwapChain(Device* device, GLFWwindow* window, CommandBufferManager& commandBufferManager);
+    void Create(Device* device, GLFWwindow* window, Surface* surface);
+    void Recreate(Device* device, GLFWwindow* window, Surface* surface, CommandBufferManager* cmdManager);
+    void Cleanup(Device* device);
+
     void CreateImageViews(Device* device);
 
-    void CleanupSwapChain(Device* device);
-
-    VkSurfaceKHR GetSurface();
     VkSwapchainKHR GetSwapChain();
     std::vector<VkImage> GetSwapChainImages();
     VkFormat GetSwapChainImageFormat();
     VkExtent2D GetSwapChainExtent();
     std::vector<VkImageView> GetSwapChainImageViews();
 
-    SwapChainSupportDetails QuerySwapChainSupport(VkPhysicalDevice device);
-    VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
-    VkPresentModeKHR ChooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
-    VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, GLFWwindow* window);
 private:
-    VkSurfaceKHR m_surface;
-    VkSwapchainKHR m_swapChain;
+    Device* m_device;
+
+    VkSwapchainKHR m_swapChain = VK_NULL_HANDLE;
+    Surface* m_surface;
     std::vector<VkImage> m_swapChainImages;
     VkFormat m_swapChainImageFormat;
     VkExtent2D m_swapChainExtent;

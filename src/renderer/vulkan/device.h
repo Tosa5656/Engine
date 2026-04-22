@@ -9,6 +9,7 @@
 
 #include <renderer/vulkan/instance.h>
 
+class Surface;
 class SwapChain;
 
 struct QueueFamilyIndices
@@ -22,33 +23,32 @@ struct QueueFamilyIndices
     }
 };
 
-// TODO: Create surface class and connect to function
 class Device
 {
 public:
     Device();
     ~Device();
 
-    void Create(Instance* instance, VkSurfaceKHR surface);
+    void Create(Instance* instance, Surface* surface);
 
-    void PickPhysicalDevice(Instance* instance, SwapChain* swapChain, VkSurfaceKHR surface);
-    QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface);
+    void PickPhysicalDevice(Instance* instance, Surface* surface);
+    QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device, Surface* surface);
     bool CheckDeviceExtensionSupport(VkPhysicalDevice device);
-    bool IsDeviceSuitable(VkPhysicalDevice device, SwapChain* swapChain, VkSurfaceKHR surface);
+    bool IsDeviceSuitable(VkPhysicalDevice device, Surface* surface);
 
     VkDevice GetDevice();
     VkPhysicalDevice GetPhysicalDevice();
     VkQueue GetGraphicsQueue();
-    uint32_t GetGraphicsQueueFamilyIndex(VkSurfaceKHR surface);
+    uint32_t GetGraphicsQueueFamilyIndex(Surface* surface);
     VkQueue GetPresentQueue();
-    uint32_t GetPresentQueueFamilyIndex(VkSurfaceKHR surface);
+    uint32_t GetPresentQueueFamilyIndex(Surface* surface);
 private:
     Instance* m_instance;
 
-    VkDevice m_device;
-    VkPhysicalDevice m_physicalDevice;
-    VkQueue m_graphicsQueue;
-    VkQueue m_presentQueue;
+    VkDevice m_device = VK_NULL_HANDLE;
+    VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
+    VkQueue m_graphicsQueue = VK_NULL_HANDLE;
+    VkQueue m_presentQueue = VK_NULL_HANDLE;
 
     const std::vector<const char*> m_deviceExtensions = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,

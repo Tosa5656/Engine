@@ -1,6 +1,6 @@
 #include "instance.h"
 
-Instance::Instance() {}
+Instance::Instance() : m_instance(VK_NULL_HANDLE), m_debugMessenger(VK_NULL_HANDLE) {}
 Instance::~Instance() {}
 
 void Instance::Create(const VkApplicationInfo &appInfo)

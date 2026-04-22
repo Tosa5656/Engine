@@ -17,8 +17,7 @@
 
 struct Vertex
 {
-    // TODO: After all transfers change pos to vec3
-    glm::vec2 pos;
+    glm::vec3 pos;
     glm::vec3 color;
 
     static VkVertexInputBindingDescription getBindingDescription()
@@ -37,7 +36,7 @@ struct Vertex
 
         attributeDescriptions[0].binding  = 0;
         attributeDescriptions[0].location = 0;
-        attributeDescriptions[0].format   = VK_FORMAT_R32G32_SFLOAT; // TODO: After all transfers change pos to vec3, change to VK_FORMAT_R32G32B32_SFLOAT
+        attributeDescriptions[0].format   = VK_FORMAT_R32G32B32_SFLOAT;
         attributeDescriptions[0].offset   = offsetof(Vertex, pos);
 
         attributeDescriptions[1].binding  = 0;
@@ -62,40 +61,48 @@ public:
     ResourceManager();
     ~ResourceManager();
 
-    void CreateVertexBuffer(CommandBufferManager* commandBufferManager, Device* device);
-    void CreateIndexBuffer(CommandBufferManager* commandBufferManager, Device* device);
-    void CreateUniformBuffers(DescriptorsManager* descriptorManager, SwapChain* swapChain);
+    void Create(CommandBufferManager* commandBufferManager, Device* device, SwapChain* swapChain, Instance* instance);
+    void Cleanup();
+
+    void CreateVertexBuffer();
+    void CreateIndexBuffer();
+    void CreateUniformBuffers();
     void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkBuffer& buffer, VmaAllocation& allocation);
-    void CreateAllocator(Device* device, Instance* instance);
-    void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size, CommandBufferManager* commandBufferManager, Device* device);
+    void CreateAllocator();
+    void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
-    void UpdateUniformBuffer(uint32_t currentImage, SwapChain* swapChain); // TODO: Check after all transfers
-
-    void Cleanup(DescriptorsManager* descriptorManager);
+    void UpdateUniformBuffer(uint32_t currentImage); // TODO: Check after all transfers
 
     VkBuffer GetVertexBuffer();
     VmaAllocation GetVertexBufferAllocation();
     VkBuffer GetIndexBuffer();
     VmaAllocation GetIndexBufferAllocation();
+    std::vector<VkBuffer>& GetUniformBuffers();
     std::vector<VmaAllocation> GetUniformBufferAllocation();
     VmaAllocator GetAllocator();
 
     // TODO: transfer vertices and indices to new class
     const std::vector<Vertex> vertices = {
-        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-        {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
-        {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
-        {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
+        {{-0.5f, -0.5f, 1.0f}, {1.0f, 0.0f, 0.0f}},
+        {{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}},
+        {{0.5f, 0.5f, 1.0f}, {0.0f, 0.0f, 1.0f}},
+        {{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}}
     };
 
     const std::vector<uint16_t> indices = {
         0, 1, 2, 2, 3, 0
     };
 private:
+    CommandBufferManager* m_commandBufferManager;
+    Device* m_device;
+    SwapChain* m_swapChain;
+    Instance* m_instance;
+
     VkBuffer m_vertexBuffer;
     VmaAllocation m_vertexBufferAllocation = VK_NULL_HANDLE;
     VkBuffer m_indexBuffer;
     VmaAllocation m_indexBufferAllocation = VK_NULL_HANDLE;
+    std::vector<VkBuffer> m_uniformBuffers;
     std::vector<VmaAllocation> m_uniformAllocations;
     VmaAllocator m_allocator = VK_NULL_HANDLE;
 };

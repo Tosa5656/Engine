@@ -21,20 +21,22 @@ void Renderer::Init(GLFWwindow *window)
 
     m_instance.Create(appInfo);
     m_instance.SetupDebugMessenger();
-    m_swapChain.CreateSurface(&m_instance, m_window);
-    m_device.PickPhysicalDevice(&m_instance, &m_swapChain, m_swapChain.GetSurface());
-    m_device.Create(&m_instance, m_swapChain.GetSurface());
-    m_resourceManager.CreateAllocator(&m_device, &m_instance);
-    m_swapChain.CreateSwapChain(&m_device, m_window);
+    m_surface.Create(&m_instance, m_window);
+    m_device.PickPhysicalDevice(&m_instance, &m_surface);
+    m_device.Create(&m_instance, &m_surface);
+    m_resourceManager.Create(&m_commandBufferManager, &m_device, &m_swapChain, &m_instance);
+    m_resourceManager.CreateAllocator();
+    m_swapChain.Create(&m_device, m_window, &m_surface);
     m_swapChain.CreateImageViews(&m_device);
-    m_descriptorManager.CreateDescriptorSetLayout(&m_device);
+    m_descriptorManager.Init(&m_device, &m_swapChain, &m_resourceManager);
+    m_descriptorManager.CreateDescriptorSetLayout();
     m_pipelineManager.Create(&m_device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout());
-    m_commandBufferManager.Init(m_device.GetDevice(), m_device.GetGraphicsQueueFamilyIndex(m_swapChain.GetSurface()));
-    m_resourceManager.CreateVertexBuffer(&m_commandBufferManager, &m_device);
-    m_resourceManager.CreateIndexBuffer(&m_commandBufferManager, &m_device);
-    m_resourceManager.CreateUniformBuffers(&m_descriptorManager, &m_swapChain);
-    m_descriptorManager.CreateDescriptorPool(&m_device, &m_swapChain);
-    m_descriptorManager.CreateDescriptorSets(&m_device, &m_swapChain);
+    m_commandBufferManager.Init(m_device.GetDevice(), m_device.GetGraphicsQueueFamilyIndex(&m_surface));
+    m_resourceManager.CreateVertexBuffer();
+    m_resourceManager.CreateIndexBuffer();
+    m_resourceManager.CreateUniformBuffers();
+    m_descriptorManager.CreateDescriptorPool();
+    m_descriptorManager.CreateDescriptorSets();
     CreateSyncObjects();
     m_imagesInFlight.resize(m_swapChain.GetSwapChainImages().size(), VK_NULL_HANDLE);
 }
@@ -54,7 +56,7 @@ void Renderer::Draw()
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR)
     {
-        m_swapChain.RecreateSwapChain(&m_device, m_window, m_commandBufferManager);
+        m_swapChain.Recreate(&m_device, m_window, &m_surface, &m_commandBufferManager);
         return;
     }
     else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
@@ -68,7 +70,7 @@ void Renderer::Draw()
     }
     m_imagesInFlight[imageIndex] = m_inFlightFences[m_currentFrame];
 
-    m_resourceManager.UpdateUniformBuffer(imageIndex, &m_swapChain);
+    m_resourceManager.UpdateUniformBuffer(imageIndex);
 
     VkCommandBuffer cmd = m_commandBufferManager.GetCommandBuffer(m_currentFrame);
     vkResetCommandBuffer(cmd, 0);
@@ -181,7 +183,7 @@ void Renderer::Draw()
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_framebufferResized)
     {
         m_framebufferResized = false;
-        m_swapChain.RecreateSwapChain(&m_device, m_window, m_commandBufferManager);
+        m_swapChain.Recreate(&m_device, m_window, &m_surface, &m_commandBufferManager);
         return;
     }
     else if (result != VK_SUCCESS)
@@ -192,7 +194,6 @@ void Renderer::Draw()
     m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-// TODO: Create destroy functions
 void Renderer::Destroy()
 {
     vkDeviceWaitIdle(m_device.GetDevice());
@@ -208,18 +209,18 @@ void Renderer::Destroy()
             vkDestroySemaphore(m_device.GetDevice(), sem, nullptr);
     }
 
-    m_swapChain.CleanupSwapChain(&m_device);
+    m_swapChain.Cleanup(&m_device);
     m_pipelineManager.Shutdown(&m_device);
 
-    for (size_t i = 0; i < m_descriptorManager.GetUniformBuffers().size(); i++)
+    for (size_t i = 0; i < m_resourceManager.GetUniformBuffers().size(); i++)
     {
-        if (m_descriptorManager.GetUniformBuffers()[i] != VK_NULL_HANDLE)
+        if (m_resourceManager.GetUniformBuffers()[i] != VK_NULL_HANDLE)
         {
-            vmaDestroyBuffer(m_resourceManager.GetAllocator(), m_descriptorManager.GetUniformBuffers()[i], m_resourceManager.GetUniformBufferAllocation()[i]);
+            vmaDestroyBuffer(m_resourceManager.GetAllocator(), m_resourceManager.GetUniformBuffers()[i], m_resourceManager.GetUniformBufferAllocation()[i]);
         }
     }
 
-    m_descriptorManager.Cleanup(&m_device);
+    m_descriptorManager.Cleanup();
 
     if (m_resourceManager.GetIndexBuffer() != VK_NULL_HANDLE)
     {
@@ -255,7 +256,7 @@ void Renderer::Destroy()
     if (m_instance.IsExtensionValidationEnabled())
         m_instance.DestroyDebugUtilsMessengerEXT(m_instance.GetInstance(), m_instance.GetDebugMessenger(), nullptr);
 
-    vkDestroySurfaceKHR(m_instance.GetInstance(), m_swapChain.GetSurface(), nullptr);
+    m_surface.Cleanup(&m_instance);
     vkDestroyInstance(m_instance.GetInstance(), nullptr);
 }
 
