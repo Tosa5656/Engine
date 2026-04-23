@@ -55,7 +55,10 @@ void ResourceManager::CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDevic
     allocInfo.commandBufferCount = 1;
 
     VkCommandBuffer commandBuffer;
-    vkAllocateCommandBuffers(m_device->GetDevice(), &allocInfo, &commandBuffer);
+    if (vkAllocateCommandBuffers(m_device->GetDevice(), &allocInfo, &commandBuffer) != VK_SUCCESS)
+    {
+        throw std::runtime_error("Failed to allocate command buffer for copy!");
+    }
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -136,10 +139,10 @@ void ResourceManager::CreateUniformBuffers()
 
 void ResourceManager::UpdateUniformBuffer(uint32_t currentImage)
 {
-    static auto startTime = std::chrono::high_resolution_clock::now();
+    static std::chrono::steady_clock::time_point startTime = std::chrono::steady_clock::now();
 
-    auto currentTime = std::chrono::high_resolution_clock::now();
-    float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+    auto currentTime = std::chrono::steady_clock::now();
+    float time = std::chrono::duration<float>(currentTime - startTime).count();
 
     UniformBufferObject ubo{};
     ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));

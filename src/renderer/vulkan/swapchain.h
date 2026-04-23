@@ -29,7 +29,7 @@ public:
     std::vector<VkImageView> GetSwapChainImageViews();
 
 private:
-    Device* m_device;
+    Device* m_device = nullptr;
 
     VkSwapchainKHR m_swapChain = VK_NULL_HANDLE;
     Surface* m_surface;

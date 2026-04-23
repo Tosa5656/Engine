@@ -5,6 +5,7 @@ SwapChain::~SwapChain() = default;
 
 void SwapChain::Create(Device* device, GLFWwindow* window, Surface* surface)
 {
+    m_device = device;
     m_surface = surface;
 
     auto swapChainSupport = surface->QuerySwapChainSupport(device->GetPhysicalDevice());
@@ -81,12 +82,14 @@ void SwapChain::Recreate(Device* device, GLFWwindow* window, Surface* surface, C
 
     cmdManager->Recreate(device->GetGraphicsQueueFamilyIndex(m_surface));
     Create(device, window, surface);
+
+    m_swapChainImageViews.clear();
     CreateImageViews(device);
 }
 
 void SwapChain::Cleanup(Device* device)
 {
-    vkDeviceWaitIdle(m_device->GetDevice());
+    vkDeviceWaitIdle(device->GetDevice());
 
     for (auto view : m_swapChainImageViews)
         vkDestroyImageView(device->GetDevice(), view, nullptr);

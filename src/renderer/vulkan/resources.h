@@ -50,9 +50,9 @@ struct Vertex
 
 struct UniformBufferObject
 {
-    glm::mat4 model;
-    glm::mat4 view;
-    glm::mat4 proj;
+    alignas(16) glm::mat4 model;
+    alignas(16) glm::mat4 view;
+    alignas(16) glm::mat4 proj;
 };
 
 class ResourceManager
@@ -71,7 +71,7 @@ public:
     void CreateAllocator();
     void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
-    void UpdateUniformBuffer(uint32_t currentImage); // TODO: Check after all transfers
+    void UpdateUniformBuffer(uint32_t currentImage);
 
     VkBuffer GetVertexBuffer();
     VmaAllocation GetVertexBufferAllocation();
@@ -81,11 +81,11 @@ public:
     std::vector<VmaAllocation> GetUniformBufferAllocation();
     VmaAllocator GetAllocator();
 
-    // TODO: transfer vertices and indices to new class
+    // TODO: Create mesh class
     const std::vector<Vertex> vertices = {
-        {{-0.5f, -0.5f, 1.0f}, {1.0f, 0.0f, 0.0f}},
+        {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}},
         {{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}},
-        {{0.5f, 0.5f, 1.0f}, {0.0f, 0.0f, 1.0f}},
+        {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}},
         {{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}}
     };
 

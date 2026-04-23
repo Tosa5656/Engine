@@ -211,40 +211,16 @@ void Renderer::Destroy()
 
     m_swapChain.Cleanup(&m_device);
     m_pipelineManager.Shutdown(&m_device);
-
-    for (size_t i = 0; i < m_resourceManager.GetUniformBuffers().size(); i++)
-    {
-        if (m_resourceManager.GetUniformBuffers()[i] != VK_NULL_HANDLE)
-        {
-            vmaDestroyBuffer(m_resourceManager.GetAllocator(), m_resourceManager.GetUniformBuffers()[i], m_resourceManager.GetUniformBufferAllocation()[i]);
-        }
-    }
-
     m_descriptorManager.Cleanup();
+    m_commandBufferManager.Shutdown();
+    m_resourceManager.Cleanup();
 
-    if (m_resourceManager.GetIndexBuffer() != VK_NULL_HANDLE)
-    {
-        vmaDestroyBuffer(m_resourceManager.GetAllocator(), m_resourceManager.GetIndexBuffer(), m_resourceManager.GetIndexBufferAllocation());
-    }
-
-    if (m_resourceManager.GetVertexBuffer() != VK_NULL_HANDLE)
-    {
-        vmaDestroyBuffer(m_resourceManager.GetAllocator(), m_resourceManager.GetVertexBuffer(), m_resourceManager.GetVertexBufferAllocation());
-    }
-
-    for (auto& allocation : m_resourceManager.GetUniformBufferAllocation())
-    {
-        if (allocation != VK_NULL_HANDLE)
-            vmaDestroyBuffer(m_resourceManager.GetAllocator(), VK_NULL_HANDLE, allocation);
-    }
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
     {
         if (m_inFlightFences[i] != VK_NULL_HANDLE)
             vkDestroyFence(m_device.GetDevice(), m_inFlightFences[i], nullptr);
     }
-
-    m_commandBufferManager.Shutdown();
 
     if (m_resourceManager.GetAllocator() != VK_NULL_HANDLE)
     {
@@ -258,20 +234,6 @@ void Renderer::Destroy()
 
     m_surface.Cleanup(&m_instance);
     vkDestroyInstance(m_instance.GetInstance(), nullptr);
-}
-
-void Renderer::CleanupPerImageSemaphores()
-{
-    for (auto& sem : m_imageAvailableSemaphores)
-    {
-        if (sem != VK_NULL_HANDLE)
-            vkDestroySemaphore(m_device.GetDevice(), sem, nullptr);
-    }
-    for (auto& sem : m_renderFinishedSemaphores)
-    {
-        if (sem != VK_NULL_HANDLE)
-            vkDestroySemaphore(m_device.GetDevice(), sem, nullptr);
-    }
 }
 
 void Renderer::SetFramebufferResized(bool resized)

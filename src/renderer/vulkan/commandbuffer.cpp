@@ -45,6 +45,8 @@ void CommandBufferManager::Shutdown()
 
 void CommandBufferManager::Recreate(uint32_t queueFamilyIndex)
 {
+    vkDeviceWaitIdle(m_device);
+
     if (m_commandPool != VK_NULL_HANDLE)
     {
         vkDestroyCommandPool(m_device, m_commandPool, nullptr);

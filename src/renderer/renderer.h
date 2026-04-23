@@ -75,7 +75,6 @@ private:
     // Create functions
     void CreateSyncObjects();
     void CreatePerImageSemaphores();
-    void CleanupPerImageSemaphores();
 
     GLFWwindow* m_window;
 
