@@ -19,7 +19,8 @@ set(PROJECT_SOURCES src/main.cpp
                     src/renderer/vulkan/pipeline.cpp
                     src/renderer/vulkan/descriptors.cpp
                     src/renderer/vulkan/resources.cpp
-                    src/renderer/vulkan/surface.cpp)
+                    src/renderer/vulkan/surface.cpp
+                    src/renderer/vulkan/mesh.cpp)
 add_executable(${PROJECT_NAME} ${PROJECT_SOURCES})
 include_directories(src/)
 

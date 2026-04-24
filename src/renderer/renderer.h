@@ -25,6 +25,7 @@
 #include <renderer/vulkan/commandbuffer.h>
 #include <renderer/vulkan/pipeline.h>
 #include <renderer/vulkan/descriptors.h>
+#include <renderer/vulkan/mesh.h>
 #include <renderer/vulkan/resources.h>
 
 static bool is_glfw_initialized = false;
@@ -86,6 +87,7 @@ private:
     PipelineManager m_pipelineManager;
     DescriptorsManager m_descriptorManager;
     ResourceManager m_resourceManager;
+    Mesh m_mesh;
 
     std::array<VkSemaphore, MAX_FRAMES_IN_FLIGHT> m_imageAvailableSemaphores;
     std::vector<VkSemaphore> m_renderFinishedSemaphores;

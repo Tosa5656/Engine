@@ -2,6 +2,7 @@
 
 #include "device.h"
 #include "swapchain.h"
+#include "mesh.h"
 
 PipelineManager::PipelineManager() {}
 PipelineManager::~PipelineManager() {}
@@ -28,8 +29,8 @@ void PipelineManager::Create(Device* device, SwapChain* swapChain, VkDescriptorS
 
     VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
 
-    auto bindingDescription = Vertex::getBindingDescription();
-    auto attributeDescriptions = Vertex::getAttributeDescriptions();
+    auto bindingDescription = MeshVertex::getBindingDescription();
+    auto attributeDescriptions = MeshVertex::getAttributeDescriptions();
 
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;

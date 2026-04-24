@@ -24,7 +24,7 @@ void Renderer::Init(GLFWwindow *window)
     m_surface.Create(&m_instance, m_window);
     m_device.PickPhysicalDevice(&m_instance, &m_surface);
     m_device.Create(&m_instance, &m_surface);
-    m_resourceManager.Create(&m_commandBufferManager, &m_device, &m_swapChain, &m_instance);
+    m_resourceManager.Create(&m_device, &m_swapChain, &m_instance);
     m_resourceManager.CreateAllocator();
     m_swapChain.Create(&m_device, m_window, &m_surface);
     m_swapChain.CreateImageViews(&m_device);
@@ -32,9 +32,19 @@ void Renderer::Init(GLFWwindow *window)
     m_descriptorManager.CreateDescriptorSetLayout();
     m_pipelineManager.Create(&m_device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout());
     m_commandBufferManager.Init(m_device.GetDevice(), m_device.GetGraphicsQueueFamilyIndex(&m_surface));
-    m_resourceManager.CreateVertexBuffer();
-    m_resourceManager.CreateIndexBuffer();
     m_resourceManager.CreateUniformBuffers();
+
+    std::vector<MeshVertex> vertices = {
+        {{-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}},
+        {{0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}},
+        {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+        {{-0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}}
+    };
+    std::vector<MeshIndex> indices = {
+        {0}, {1}, {2}, {2}, {3}, {0}
+    };
+    m_mesh.Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), vertices, indices);
+
     m_descriptorManager.CreateDescriptorPool();
     m_descriptorManager.CreateDescriptorSets();
     CreateSyncObjects();
@@ -120,14 +130,9 @@ void Renderer::Draw()
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetGraphicsPipeline());
 
-    VkBuffer vertexBuffers[] = { m_resourceManager.GetVertexBuffer() };
-    VkDeviceSize offsets[] = { 0 };
-    vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, offsets);
-    vkCmdBindIndexBuffer(cmd, m_resourceManager.GetIndexBuffer(), 0, VK_INDEX_TYPE_UINT16);
-
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 0, 1, &m_descriptorManager.GetDescriptorSets()[imageIndex], 0, nullptr);
 
-    vkCmdDrawIndexed(cmd, static_cast<uint32_t>(m_resourceManager.indices.size()), 1, 0, 0, 0);
+    m_mesh.Draw(cmd);
 
     vkCmdEndRendering(cmd);
 
@@ -209,18 +214,20 @@ void Renderer::Destroy()
             vkDestroySemaphore(m_device.GetDevice(), sem, nullptr);
     }
 
-    m_swapChain.Cleanup(&m_device);
-    m_pipelineManager.Shutdown(&m_device);
-    m_descriptorManager.Cleanup();
-    m_commandBufferManager.Shutdown();
-    m_resourceManager.Cleanup();
-
-
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
     {
         if (m_inFlightFences[i] != VK_NULL_HANDLE)
             vkDestroyFence(m_device.GetDevice(), m_inFlightFences[i], nullptr);
     }
+
+    m_swapChain.Cleanup(&m_device);
+    m_pipelineManager.Shutdown(&m_device);
+    m_descriptorManager.Cleanup();
+    m_mesh.Destroy();
+    m_commandBufferManager.Shutdown();
+    m_resourceManager.Cleanup();
+
+    vkDeviceWaitIdle(m_device.GetDevice());
 
     if (m_resourceManager.GetAllocator() != VK_NULL_HANDLE)
     {
