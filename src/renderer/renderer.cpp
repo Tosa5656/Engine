@@ -34,16 +34,7 @@ void Renderer::Init(GLFWwindow *window)
     m_commandBufferManager.Init(m_device.GetDevice(), m_device.GetGraphicsQueueFamilyIndex(&m_surface));
     m_resourceManager.CreateUniformBuffers();
 
-    std::vector<MeshVertex> vertices = {
-        {{-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}},
-        {{0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}},
-        {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-        {{-0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}}
-    };
-    std::vector<MeshIndex> indices = {
-        {0}, {1}, {2}, {2}, {3}, {0}
-    };
-    m_mesh.Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), vertices, indices);
+    m_mesh.SetDeviceAndAllocator(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator());
     m_mesh.LoadFromFile("models/cube.obj");
 
     m_descriptorManager.CreateDescriptorPool();
@@ -241,8 +232,6 @@ void Renderer::Destroy()
     m_mesh.Destroy();
     m_commandBufferManager.Shutdown();
     m_resourceManager.Cleanup();
-
-    vkDeviceWaitIdle(m_device.GetDevice());
 
     if (m_resourceManager.GetAllocator() != VK_NULL_HANDLE)
     {

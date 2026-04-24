@@ -7,12 +7,30 @@
 #include <algorithm>
 #include <cstdint>
 #include <iostream>
+#include <unordered_map>
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 #include <glm/glm.hpp>
 
 #include <renderer/vulkan/mesh.h>
+
+struct MeshVertexHash
+{
+    size_t operator()(const MeshVertex& vertex) const noexcept
+    {
+        size_t hash = 17;
+        hash = hash * 31 + std::hash<float>{}(vertex.pos.x);
+        hash = hash * 31 + std::hash<float>{}(vertex.pos.y);
+        hash = hash * 31 + std::hash<float>{}(vertex.pos.z);
+        hash = hash * 31 + std::hash<float>{}(vertex.normal.x);
+        hash = hash * 31 + std::hash<float>{}(vertex.normal.y);
+        hash = hash * 31 + std::hash<float>{}(vertex.normal.z);
+        hash = hash * 31 + std::hash<float>{}(vertex.uv.x);
+        hash = hash * 31 + std::hash<float>{}(vertex.uv.y);
+        return hash;
+    }
+};
 
 class ObjParser
 {
@@ -29,6 +47,9 @@ public:
         std::vector<glm::vec3> positions;
         std::vector<glm::vec2> texCoords;
         std::vector<glm::vec3> normals;
+
+        std::unordered_map<MeshVertex, uint32_t, MeshVertexHash> vertexCache;
+        vertexCache.reserve(65536);
 
         std::string line;
         while (std::getline(file, line))
@@ -84,16 +105,39 @@ public:
                     }
                     else if (slashCount == 1)
                     {
-                        if (viss >> posIdx >> slash1 >> texIdx)
+                        std::string first, second;
+                        if (viss >> first)
                         {
-                            facePos.push_back(posIdx);
-                            faceTex.push_back(texIdx);
+                            facePos.push_back(std::stoi(first));
                         }
+                        if (viss >> slash1 >> second)
+                        {
+                            if (!second.empty())
+                            {
+                                faceTex.push_back(std::stoi(second));
+                            }
+                        }
+                    }
+                    else if (slashCount == 0)
+                    {
+                        uint32_t pIdx;
+                        viss >> pIdx;
+                        facePos.push_back(pIdx);
                     }
                     else
                     {
-                        viss >> posIdx;
-                        facePos.push_back(posIdx);
+                        std::string first, second;
+                        if (viss >> first)
+                        {
+                            facePos.push_back(std::stoi(first));
+                        }
+                        if (viss >> slash1 >> second)
+                        {
+                            if (!second.empty())
+                            {
+                                faceTex.push_back(std::stoi(second));
+                            }
+                        }
                     }
                 }
 
@@ -105,14 +149,60 @@ public:
                         uint32_t i1 = facePos[i];
                         uint32_t i2 = facePos[i + 1];
 
-                        size_t baseIdx = vertices.size();
-                        vertices.push_back(CreateVertex(positions, texCoords, normals, i0, faceTex.size() > 0 ? faceTex[0] : 0, faceNormal.size() > 0 ? faceNormal[0] : 0, baseIdx));
-                        vertices.push_back(CreateVertex(positions, texCoords, normals, i1, faceTex.size() > i ? faceTex[i] : 0, faceNormal.size() > i ? faceNormal[i] : 0, baseIdx + 1));
-                        vertices.push_back(CreateVertex(positions, texCoords, normals, i2, faceTex.size() > i + 1 ? faceTex[i + 1] : 0, faceNormal.size() > i + 1 ? faceNormal[i + 1] : 0, baseIdx + 2));
+                        uint16_t texIdx0 = faceTex.size() > 0 ? static_cast<uint16_t>(faceTex[0]) : 0;
+                        uint16_t texIdx1 = faceTex.size() > i ? static_cast<uint16_t>(faceTex[i]) : 0;
+                        uint16_t texIdx2 = faceTex.size() > i + 1 ? static_cast<uint16_t>(faceTex[i + 1]) : 0;
 
-                        indices.push_back({static_cast<uint16_t>(baseIdx)});
-                        indices.push_back({static_cast<uint16_t>(baseIdx + 1)});
-                        indices.push_back({static_cast<uint16_t>(baseIdx + 2)});
+                        uint16_t normIdx0 = faceNormal.size() > 0 ? static_cast<uint16_t>(faceNormal[0]) : 0;
+                        uint16_t normIdx1 = faceNormal.size() > i ? static_cast<uint16_t>(faceNormal[i]) : 0;
+                        uint16_t normIdx2 = faceNormal.size() > i + 1 ? static_cast<uint16_t>(faceNormal[i + 1]) : 0;
+
+                        MeshVertex v0 = CreateVertex(positions, texCoords, normals, i0, texIdx0, normIdx0);
+                        MeshVertex v1 = CreateVertex(positions, texCoords, normals, i1, texIdx1, normIdx1);
+                        MeshVertex v2 = CreateVertex(positions, texCoords, normals, i2, texIdx2, normIdx2);
+
+                        auto it0 = vertexCache.find(v0);
+                        uint32_t idx0;
+                        if (it0 == vertexCache.end())
+                        {
+                            idx0 = static_cast<uint32_t>(vertices.size());
+                            vertexCache.emplace(v0, idx0);
+                            vertices.push_back(v0);
+                        }
+                        else
+                        {
+                            idx0 = it0->second;
+                        }
+
+                        auto it1 = vertexCache.find(v1);
+                        uint32_t idx1;
+                        if (it1 == vertexCache.end())
+                        {
+                            idx1 = static_cast<uint32_t>(vertices.size());
+                            vertexCache.emplace(v1, idx1);
+                            vertices.push_back(v1);
+                        }
+                        else
+                        {
+                            idx1 = it1->second;
+                        }
+
+                        auto it2 = vertexCache.find(v2);
+                        uint32_t idx2;
+                        if (it2 == vertexCache.end())
+                        {
+                            idx2 = static_cast<uint32_t>(vertices.size());
+                            vertexCache.emplace(v2, idx2);
+                            vertices.push_back(v2);
+                        }
+                        else
+                        {
+                            idx2 = it2->second;
+                        }
+
+                        indices.push_back({static_cast<uint16_t>(idx0)});
+                        indices.push_back({static_cast<uint16_t>(idx1)});
+                        indices.push_back({static_cast<uint16_t>(idx2)});
                     }
                 }
             }
@@ -130,7 +220,7 @@ public:
     }
 
 private:
-    static MeshVertex CreateVertex(const std::vector<glm::vec3>& positions, const std::vector<glm::vec2>& texCoords, const std::vector<glm::vec3>& normals, uint32_t posIdx, uint32_t texIdx, uint32_t normalIdx, size_t vertexCount)
+    static MeshVertex CreateVertex(const std::vector<glm::vec3>& positions, const std::vector<glm::vec2>& texCoords, const std::vector<glm::vec3>& normals, uint32_t posIdx, uint32_t texIdx, uint32_t normalIdx)
     {
         MeshVertex vertex;
 

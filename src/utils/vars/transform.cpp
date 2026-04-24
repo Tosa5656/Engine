@@ -35,7 +35,7 @@ void Transform::Move(glm::vec3 direction)
 {
     m_position += direction;
 
-    m_transformationMatrix = glm::translate(m_transformationMatrix, direction);
+    UpdateTransformMatrix();
 }
 
 void Transform::Rotate(float rotation, glm::vec3 axis)
@@ -52,27 +52,27 @@ void Transform::Scale(glm::vec3 scale)
     m_transformationMatrix = glm::scale(m_transformationMatrix, scale);
 }
 
-glm::vec3 Transform::GetPosition()
+glm::vec3 Transform::GetPosition() const
 {
     return m_position;
 }
 
-glm::vec3 Transform::GetRotation()
+glm::vec3 Transform::GetRotation() const
 {
     return m_rotation;
 }
 
-glm::vec3 Transform::GetScale()
+glm::vec3 Transform::GetScale() const
 {
     return m_scale;
 }
 
-glm::mat4 Transform::GetTransformationMatrix()
+glm::mat4 Transform::GetTransformationMatrix() const
 {
     return m_transformationMatrix;
 }
 
-glm::mat4 Transform::GetInverseTransformationMatrix()
+glm::mat4 Transform::GetInverseTransformationMatrix() const
 {
     return glm::inverse(m_transformationMatrix);
 }

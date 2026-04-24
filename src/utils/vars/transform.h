@@ -7,6 +7,7 @@
 
 class Transform
 {
+public:
     Transform();
     Transform(glm::vec3 position=glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3 rotation=glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3 scale=glm::vec3(1.0f, 1.0f, 1.0f));
 
@@ -20,12 +21,12 @@ class Transform
     void Rotate(float rotation, glm::vec3 axis);
     void Scale(glm::vec3 scale);
 
-    glm::vec3 GetPosition();
-    glm::vec3 GetRotation();
-    glm::vec3 GetScale();
+    glm::vec3 GetPosition() const;
+    glm::vec3 GetRotation() const;
+    glm::vec3 GetScale() const;
 
-    glm::mat4 GetTransformationMatrix();
-    glm::mat4 GetInverseTransformationMatrix();
+    glm::mat4 GetTransformationMatrix() const;
+    glm::mat4 GetInverseTransformationMatrix() const;
 private:
     void UpdateTransformMatrix();
 

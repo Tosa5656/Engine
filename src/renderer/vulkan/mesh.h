@@ -19,6 +19,11 @@ struct MeshVertex
     glm::vec3 normal;
     glm::vec2 uv;
 
+    bool operator==(const MeshVertex& other) const noexcept
+    {
+        return pos == other.pos && normal == other.normal && uv == other.uv;
+    }
+
     static VkVertexInputBindingDescription getBindingDescription()
     {
         VkVertexInputBindingDescription bindingDescription{};
@@ -71,16 +76,22 @@ public:
     VkBuffer GetIndexBuffer() const { return m_indexBuffer; }
     VmaAllocation GetIndexBufferAllocation() const { return m_indexBufferAllocation; }
     uint32_t GetIndexCount() const { return static_cast<uint32_t>(m_indices.size()); }
+    CommandBufferManager* GetCommandBufferManager() const { return m_commandBufferManager; }
 
     bool LoadFromFile(const std::string& filename);
+
+    bool LoadFromFile(Device* device, CommandBufferManager* cmdManager, VmaAllocator allocator, const std::string& filename);
+
+    void SetDeviceAndAllocator(Device* device, CommandBufferManager* cmdManager, VmaAllocator allocator);
 
 private:
     void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkBuffer& buffer, VmaAllocation& allocation);
     void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
+    void UploadToBuffers();
 
-    Device* m_device;
-    CommandBufferManager* m_commandBufferManager;
-    VmaAllocator m_allocator;
+    Device* m_device = nullptr;
+    CommandBufferManager* m_commandBufferManager = nullptr;
+    VmaAllocator m_allocator = VK_NULL_HANDLE;
 
     std::vector<MeshVertex> m_vertices;
     std::vector<MeshIndex> m_indices;
