@@ -20,7 +20,8 @@ set(PROJECT_SOURCES src/main.cpp
                     src/renderer/vulkan/descriptors.cpp
                     src/renderer/vulkan/resources.cpp
                     src/renderer/vulkan/surface.cpp
-                    src/renderer/vulkan/mesh.cpp)
+                    src/renderer/vulkan/mesh.cpp
+                    src/utils/vars/transform.cpp)
 add_executable(${PROJECT_NAME} ${PROJECT_SOURCES})
 include_directories(src/)
 
@@ -97,4 +98,20 @@ endfunction()
 compile_shaders(${PROJECT_NAME}
         "${CMAKE_CURRENT_SOURCE_DIR}/resources/shaders"
         "${CMAKE_BINARY_DIR}/shaders"
+)
+
+function(copy_resources RESOURCE_DIR OUTPUT_DIR)
+    file(MAKE_DIRECTORY ${OUTPUT_DIR})
+
+    file(GLOB_RECURSE RESOURCES "${RESOURCE_DIR}/*")
+
+    foreach(RESOURCE ${RESOURCES})
+        if(NOT IS_DIRECTORY ${RESOURCE})
+            file(COPY ${RESOURCE} DESTINATION ${OUTPUT_DIR})
+        endif()
+    endforeach()
+endfunction()
+
+copy_resources("${CMAKE_CURRENT_SOURCE_DIR}/resources/models"
+        "${CMAKE_BINARY_DIR}/models"
 )

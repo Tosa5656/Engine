@@ -44,6 +44,7 @@ void Renderer::Init(GLFWwindow *window)
         {0}, {1}, {2}, {2}, {3}, {0}
     };
     m_mesh.Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), vertices, indices);
+    m_mesh.LoadFromFile("models/cube.obj");
 
     m_descriptorManager.CreateDescriptorPool();
     m_descriptorManager.CreateDescriptorSets();
