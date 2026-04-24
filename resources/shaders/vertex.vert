@@ -15,7 +15,8 @@ layout(binding = 0) uniform UniformBufferObject
     vec3 color;
 } ubo;
 
-void main() {
+void main()
+{
     gl_Position = ubo.proj * ubo.view * ubo.model * vec4(inPosition, 1.0);
     fragNormal = mat3(transpose(inverse(ubo.model))) * inNormal;
     fragUV = inUV;

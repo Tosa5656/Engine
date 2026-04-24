@@ -131,6 +131,20 @@ void Renderer::Draw()
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetGraphicsPipeline());
 
+    VkViewport viewport{};
+    viewport.x = 0.0f;
+    viewport.y = 0.0f;
+    viewport.width = (float)m_swapChain.GetSwapChainExtent().width;
+    viewport.height = (float)m_swapChain.GetSwapChainExtent().height;
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+    vkCmdSetViewport(cmd, 0, 1, &viewport);
+
+    VkRect2D scissor{};
+    scissor.offset = {0, 0};
+    scissor.extent = m_swapChain.GetSwapChainExtent();
+    vkCmdSetScissor(cmd, 0, 1, &scissor);
+
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 0, 1, &m_descriptorManager.GetDescriptorSets()[imageIndex], 0, nullptr);
 
     m_mesh.Draw(cmd);

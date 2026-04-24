@@ -44,24 +44,16 @@ void PipelineManager::Create(Device* device, SwapChain* swapChain, VkDescriptorS
     inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     inputAssembly.primitiveRestartEnable = VK_FALSE;
 
-    VkViewport viewport{};
-    viewport.x = 0.0f;
-    viewport.y = 0.0f;
-    viewport.width = (float) swapChain->GetSwapChainExtent().width;
-    viewport.height = (float) swapChain->GetSwapChainExtent().height;
-    viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f;
-
-    VkRect2D scissor{};
-    scissor.offset = {0, 0};
-    scissor.extent = swapChain->GetSwapChainExtent();
+    VkDynamicState dynamicStates[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+    VkPipelineDynamicStateCreateInfo dynamicState{};
+    dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamicState.dynamicStateCount = 2;
+    dynamicState.pDynamicStates = dynamicStates;
 
     VkPipelineViewportStateCreateInfo viewportState{};
     viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
     viewportState.viewportCount = 1;
-    viewportState.pViewports = &viewport;
     viewportState.scissorCount = 1;
-    viewportState.pScissors = &scissor;
 
     VkPipelineRasterizationStateCreateInfo rasterizer{};
     rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
@@ -106,16 +98,6 @@ void PipelineManager::Create(Device* device, SwapChain* swapChain, VkDescriptorS
     colorBlending.blendConstants[2] = 0.0f;
     colorBlending.blendConstants[3] = 0.0f;
 
-    VkDynamicState dynamicStates[] = {
-        VK_DYNAMIC_STATE_VIEWPORT,
-        VK_DYNAMIC_STATE_LINE_WIDTH
-    };
-
-    VkPipelineDynamicStateCreateInfo dynamicState{};
-    dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    dynamicState.dynamicStateCount = 2;
-    dynamicState.pDynamicStates = dynamicStates;
-
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
@@ -146,7 +128,7 @@ void PipelineManager::Create(Device* device, SwapChain* swapChain, VkDescriptorS
     pipelineInfo.pMultisampleState = &multisampling;
     pipelineInfo.pDepthStencilState = nullptr;
     pipelineInfo.pColorBlendState = &colorBlending;
-    pipelineInfo.pDynamicState = nullptr;
+    pipelineInfo.pDynamicState = &dynamicState;
     pipelineInfo.layout = m_pipelineLayout;
     pipelineInfo.renderPass = VK_NULL_HANDLE;
     pipelineInfo.subpass = 0;
