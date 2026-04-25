@@ -6,7 +6,7 @@
 #include <cstring>
 
 #include <GLFW/glfw3.h>
-#include <vulkan\vulkan.h>
+#include <vulkan/vulkan.h>
 
 class Instance
 {
