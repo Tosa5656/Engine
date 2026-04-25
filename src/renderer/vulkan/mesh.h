@@ -79,7 +79,6 @@ public:
     CommandBufferManager* GetCommandBufferManager() const { return m_commandBufferManager; }
 
     bool LoadFromFile(const std::string& filename);
-
     bool LoadFromFile(Device* device, CommandBufferManager* cmdManager, VmaAllocator allocator, const std::string& filename);
 
     void SetDeviceAndAllocator(Device* device, CommandBufferManager* cmdManager, VmaAllocator allocator);

@@ -27,6 +27,8 @@
 #include <renderer/vulkan/descriptors.h>
 #include <renderer/vulkan/mesh.h>
 #include <renderer/vulkan/resources.h>
+#include <renderer/vulkan/object.h>
+#include <renderer/vulkan/camera.h>
 
 static bool is_glfw_initialized = false;
 
@@ -88,6 +90,13 @@ private:
     DescriptorsManager m_descriptorManager;
     ResourceManager m_resourceManager;
     Mesh m_mesh;
+
+    Object m_object;
+    Camera m_camera;
+
+    float m_orbitYaw = 0.0f;
+    float m_orbitPitch = 0.5f;
+    float m_orbitDistance = 800.0f;
 
     std::array<VkSemaphore, MAX_FRAMES_IN_FLIGHT> m_imageAvailableSemaphores;
     std::vector<VkSemaphore> m_renderFinishedSemaphores;

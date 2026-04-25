@@ -11,6 +11,7 @@
 
 #include <renderer/vulkan/device.h>
 #include <renderer/vulkan/swapchain.h>
+#include <renderer/vulkan/camera.h>
 
 struct UniformBufferObject
 {
@@ -33,7 +34,7 @@ public:
     void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkBuffer& buffer, VmaAllocation& allocation);
     void CreateAllocator();
 
-    void UpdateUniformBuffer(uint32_t currentImage);
+    void UpdateUniformBuffer(uint32_t currentImage, const glm::mat4& model, Camera& camera, const glm::vec3& orbitTarget, float orbitDistance, float orbitYaw, float orbitPitch);
 
     std::vector<VkBuffer>& GetUniformBuffers();
     std::vector<VmaAllocation> GetUniformBufferAllocation();

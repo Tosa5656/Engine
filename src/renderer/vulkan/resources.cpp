@@ -53,17 +53,27 @@ void ResourceManager::CreateUniformBuffers()
     }
 }
 
-void ResourceManager::UpdateUniformBuffer(uint32_t currentImage)
+void ResourceManager::UpdateUniformBuffer(uint32_t currentImage, const glm::mat4& model, Camera& camera, const glm::vec3& orbitTarget, float orbitDistance, float orbitYaw, float orbitPitch)
 {
-    static auto startTime = std::chrono::steady_clock::now();
-    auto currentTime = std::chrono::steady_clock::now();
-    float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+    float cosPitch = glm::cos(orbitPitch);
+    float sinPitch = glm::sin(orbitPitch);
+    float cosYaw = glm::cos(orbitYaw);
+    float sinYaw = glm::sin(orbitYaw);
+
+    glm::vec3 direction(
+        cosPitch * sinYaw,
+        sinPitch,
+        cosPitch * cosYaw
+    );
+
+    glm::vec3 cameraPos = orbitTarget + direction * orbitDistance;
+    camera.SetPosition(cameraPos);
+    camera.SetTarget(orbitTarget);
 
     UniformBufferObject ubo{};
-    ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    ubo.view = glm::lookAt(glm::vec3(800.0f, 500.0f, 800.0f), glm::vec3(0.0f, 100.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    ubo.proj = glm::perspective(glm::radians(60.0f), m_swapChain->GetSwapChainExtent().width / (float) m_swapChain->GetSwapChainExtent().height, 0.1f, 2000.0f);
-    ubo.proj[1][1] *= -1;
+    ubo.model = model;
+    ubo.view = camera.GetViewMatrix();
+    ubo.proj = camera.GetProjectionMatrix();
     ubo.color = glm::vec3(0.5f, 0.5f, 0.5f);
 
     void* data;

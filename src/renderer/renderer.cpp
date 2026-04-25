@@ -34,8 +34,9 @@ void Renderer::Init(GLFWwindow *window)
     m_commandBufferManager.Init(m_device.GetDevice(), m_device.GetGraphicsQueueFamilyIndex(&m_surface));
     m_resourceManager.CreateUniformBuffers();
 
-    m_mesh.SetDeviceAndAllocator(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator());
-    m_mesh.LoadFromFile("models/cat.obj");
+    m_object.Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), "models/cat.obj");
+
+    m_camera.SetAspectRatio(m_swapChain.GetSwapChainExtent().width / (float)m_swapChain.GetSwapChainExtent().height);
 
     m_descriptorManager.CreateDescriptorPool();
     m_descriptorManager.CreateDescriptorSets();
@@ -72,7 +73,8 @@ void Renderer::Draw()
     }
     m_imagesInFlight[imageIndex] = m_inFlightFences[m_currentFrame];
 
-    m_resourceManager.UpdateUniformBuffer(imageIndex);
+    m_orbitYaw += 0.01f;
+    m_resourceManager.UpdateUniformBuffer(imageIndex, m_object.GetTransform()->GetTransformationMatrix(), m_camera, glm::vec3(0.0f, 100.0f, 0.0f), m_orbitDistance, m_orbitYaw, m_orbitPitch);
 
     VkCommandBuffer cmd = m_commandBufferManager.GetCommandBuffer(m_currentFrame);
     vkResetCommandBuffer(cmd, 0);
@@ -138,7 +140,7 @@ void Renderer::Draw()
 
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 0, 1, &m_descriptorManager.GetDescriptorSets()[imageIndex], 0, nullptr);
 
-    m_mesh.Draw(cmd);
+    m_object.Draw(cmd);
 
     vkCmdEndRendering(cmd);
 
@@ -229,7 +231,7 @@ void Renderer::Destroy()
     m_swapChain.Cleanup(&m_device);
     m_pipelineManager.Shutdown(&m_device);
     m_descriptorManager.Cleanup();
-    m_mesh.Destroy();
+    m_object.Destroy();
     m_commandBufferManager.Shutdown();
     m_resourceManager.Cleanup();
 

@@ -21,7 +21,9 @@ set(PROJECT_SOURCES src/main.cpp
                     src/renderer/vulkan/resources.cpp
                     src/renderer/vulkan/surface.cpp
                     src/renderer/vulkan/mesh.cpp
-                    src/utils/vars/transform.cpp)
+                    src/utils/vars/transform.cpp
+                    src/renderer/vulkan/object.cpp
+                    src/renderer/vulkan/camera.cpp)
 add_executable(${PROJECT_NAME} ${PROJECT_SOURCES})
 include_directories(src/)
 
