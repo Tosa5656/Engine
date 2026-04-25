@@ -61,8 +61,8 @@ void ResourceManager::UpdateUniformBuffer(uint32_t currentImage)
 
     UniformBufferObject ubo{};
     ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    ubo.proj = glm::perspective(glm::radians(60.0f), m_swapChain->GetSwapChainExtent().width / (float) m_swapChain->GetSwapChainExtent().height, 0.1f, 10.0f);
+    ubo.view = glm::lookAt(glm::vec3(800.0f, 500.0f, 800.0f), glm::vec3(0.0f, 100.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    ubo.proj = glm::perspective(glm::radians(60.0f), m_swapChain->GetSwapChainExtent().width / (float) m_swapChain->GetSwapChainExtent().height, 0.1f, 2000.0f);
     ubo.proj[1][1] *= -1;
     ubo.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
