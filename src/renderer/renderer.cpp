@@ -35,7 +35,7 @@ void Renderer::Init(GLFWwindow *window)
     m_resourceManager.CreateUniformBuffers();
 
     m_mesh.SetDeviceAndAllocator(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator());
-    m_mesh.LoadFromFile("models/cube.obj");
+    m_mesh.LoadFromFile("models/cat.obj");
 
     m_descriptorManager.CreateDescriptorPool();
     m_descriptorManager.CreateDescriptorSets();
