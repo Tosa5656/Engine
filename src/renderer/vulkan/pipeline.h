@@ -20,7 +20,7 @@ public:
     PipelineManager();
     ~PipelineManager();
 
-    void Create(Device* device, SwapChain* swapChain, VkDescriptorSetLayout descriptorSetLayout);
+    void Create(Device* device, SwapChain* swapChain, VkDescriptorSetLayout perFrameSetLayout, VkDescriptorSetLayout perObjectSetLayout);
     void Shutdown(Device* device);
     VkShaderModule CreateShaderModule(const std::vector<char> &code, Device* device);
 

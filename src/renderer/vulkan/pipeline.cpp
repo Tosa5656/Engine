@@ -7,7 +7,7 @@
 PipelineManager::PipelineManager() {}
 PipelineManager::~PipelineManager() {}
 
-void PipelineManager::Create(Device* device, SwapChain* swapChain, VkDescriptorSetLayout descriptorSetLayout)
+void PipelineManager::Create(Device* device, SwapChain* swapChain, VkDescriptorSetLayout perFrameSetLayout, VkDescriptorSetLayout perObjectSetLayout)
 {
     auto vertShaderCode = ReadFile("shaders/vertex.spv");
     auto fragShaderCode = ReadFile("shaders/fragment.spv");
@@ -98,10 +98,12 @@ void PipelineManager::Create(Device* device, SwapChain* swapChain, VkDescriptorS
     colorBlending.blendConstants[2] = 0.0f;
     colorBlending.blendConstants[3] = 0.0f;
 
+    VkDescriptorSetLayout setLayouts[] = { perFrameSetLayout, perObjectSetLayout };
+
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
+    pipelineLayoutInfo.setLayoutCount = 2;
+    pipelineLayoutInfo.pSetLayouts = setLayouts;
     pipelineLayoutInfo.pushConstantRangeCount = 0;
     pipelineLayoutInfo.pPushConstantRanges = nullptr;
 

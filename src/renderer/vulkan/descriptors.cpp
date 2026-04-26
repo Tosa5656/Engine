@@ -4,7 +4,7 @@
 DescriptorsManager::DescriptorsManager() {}
 DescriptorsManager::~DescriptorsManager() {}
 
-void DescriptorsManager::Init(Device *device, SwapChain *swapChain, ResourceManager *resourceManager)
+void DescriptorsManager::Init(Device* device, SwapChain* swapChain, ResourceManager* resourceManager, uint32_t maxObjects)
 {
     m_device = device;
     m_swapChain = swapChain;
@@ -19,24 +19,32 @@ void DescriptorsManager::Cleanup()
         m_descriptorPool = VK_NULL_HANDLE;
     }
 
-    if (m_descriptorSetLayout != VK_NULL_HANDLE)
+    if (m_perFrameSetLayout != VK_NULL_HANDLE)
     {
-        vkDestroyDescriptorSetLayout(m_device->GetDevice(), m_descriptorSetLayout, nullptr);
-        m_descriptorSetLayout = VK_NULL_HANDLE;
+        vkDestroyDescriptorSetLayout(m_device->GetDevice(), m_perFrameSetLayout, nullptr);
+        m_perFrameSetLayout = VK_NULL_HANDLE;
+    }
+
+    if (m_perObjectSetLayout != VK_NULL_HANDLE)
+    {
+        vkDestroyDescriptorSetLayout(m_device->GetDevice(), m_perObjectSetLayout, nullptr);
+        m_perObjectSetLayout = VK_NULL_HANDLE;
     }
 }
 
 void DescriptorsManager::CreateDescriptorPool()
 {
-    VkDescriptorPoolSize poolSize{};
-    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSize.descriptorCount = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size());
+    std::vector<VkDescriptorPoolSize> poolSizes(2);
+    poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSizes[0].descriptorCount = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size());
+    poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+    poolSizes[1].descriptorCount = 256;
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.poolSizeCount = 1;
-    poolInfo.pPoolSizes = &poolSize;
-    poolInfo.maxSets = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size());
+    poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+    poolInfo.pPoolSizes = poolSizes.data();
+    poolInfo.maxSets = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size()) + 1;
 
     if (vkCreateDescriptorPool(m_device->GetDevice(), &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS)
     {
@@ -46,37 +54,70 @@ void DescriptorsManager::CreateDescriptorPool()
 
 void DescriptorsManager::CreateDescriptorSets()
 {
-    std::vector<VkDescriptorSetLayout> layouts(m_swapChain->GetSwapChainImages().size(), m_descriptorSetLayout);
+    uint32_t imageCount = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size());
+
+    m_perFrameDescriptorSets.resize(imageCount);
+    m_perObjectDescriptorSets.resize(1);
+
+    std::vector<VkDescriptorSetLayout> perFrameLayouts(imageCount, m_perFrameSetLayout);
+    std::vector<VkDescriptorSetLayout> perObjectLayouts(1, m_perObjectSetLayout);
+
+    std::vector<VkDescriptorSet> allSets(imageCount + 1);
+
+    std::vector<VkDescriptorSetLayout> allLayouts;
+    allLayouts.insert(allLayouts.end(), perFrameLayouts.begin(), perFrameLayouts.end());
+    allLayouts.insert(allLayouts.end(), perObjectLayouts.begin(), perObjectLayouts.end());
+
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocInfo.descriptorPool = m_descriptorPool;
-    allocInfo.descriptorSetCount = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size());
-    allocInfo.pSetLayouts = layouts.data();
+    allocInfo.descriptorSetCount = imageCount + 1;
+    allocInfo.pSetLayouts = allLayouts.data();
 
-    m_descriptorSets.resize(m_swapChain->GetSwapChainImages().size());
-
-    if (vkAllocateDescriptorSets(m_device->GetDevice(), &allocInfo, m_descriptorSets.data()) != VK_SUCCESS)
+    if (vkAllocateDescriptorSets(m_device->GetDevice(), &allocInfo, allSets.data()) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to allocate descriptor sets!");
     }
 
-    for (size_t i = 0; i < m_swapChain->GetSwapChainImages().size(); i++)
+    for (size_t i = 0; i < imageCount; i++)
+    {
+        m_perFrameDescriptorSets[i] = allSets[i];
+    }
+    m_perObjectDescriptorSets[0] = allSets[imageCount];
+
+    for (size_t i = 0; i < imageCount; i++)
     {
         VkDescriptorBufferInfo bufferInfo{};
-        bufferInfo.buffer = m_resourceManager->GetUniformBuffers()[i];
+        bufferInfo.buffer = m_resourceManager->GetPerFrameBuffers()[i];
         bufferInfo.offset = 0;
-        bufferInfo.range = sizeof(UniformBufferObject);
+        bufferInfo.range = sizeof(PerFrameUBO);
 
         VkWriteDescriptorSet descriptorWrite{};
         descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrite.dstSet = m_descriptorSets[i];
+        descriptorWrite.dstSet = m_perFrameDescriptorSets[i];
         descriptorWrite.dstBinding = 0;
         descriptorWrite.dstArrayElement = 0;
         descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         descriptorWrite.descriptorCount = 1;
         descriptorWrite.pBufferInfo = &bufferInfo;
-        descriptorWrite.pImageInfo = nullptr;
-        descriptorWrite.pTexelBufferView = nullptr;
+
+        vkUpdateDescriptorSets(m_device->GetDevice(), 1, &descriptorWrite, 0, nullptr);
+    }
+
+    {
+        VkDescriptorBufferInfo bufferInfo{};
+        bufferInfo.buffer = m_resourceManager->GetObjectBuffer();
+        bufferInfo.offset = 0;
+        bufferInfo.range = m_resourceManager->GetObjectUBOStride();
+
+        VkWriteDescriptorSet descriptorWrite{};
+        descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrite.dstSet = m_perObjectDescriptorSets[0];
+        descriptorWrite.dstBinding = 0;
+        descriptorWrite.dstArrayElement = 0;
+        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+        descriptorWrite.descriptorCount = 1;
+        descriptorWrite.pBufferInfo = &bufferInfo;
 
         vkUpdateDescriptorSets(m_device->GetDevice(), 1, &descriptorWrite, 0, nullptr);
     }
@@ -84,21 +125,36 @@ void DescriptorsManager::CreateDescriptorSets()
 
 void DescriptorsManager::CreateDescriptorSetLayout()
 {
-    VkDescriptorSetLayoutBinding uboLayoutBinding{};
-    uboLayoutBinding.binding = 0;
-    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    uboLayoutBinding.descriptorCount = 1;
-    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-    uboLayoutBinding.pImmutableSamplers = nullptr;
+    VkDescriptorSetLayoutBinding perFrameBinding{};
+    perFrameBinding.binding = 0;
+    perFrameBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    perFrameBinding.descriptorCount = 1;
+    perFrameBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
-    VkDescriptorSetLayoutCreateInfo layoutInfo{};
-    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = 1;
-    layoutInfo.pBindings = &uboLayoutBinding;
+    VkDescriptorSetLayoutCreateInfo perFrameLayoutInfo{};
+    perFrameLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    perFrameLayoutInfo.bindingCount = 1;
+    perFrameLayoutInfo.pBindings = &perFrameBinding;
 
-    if (vkCreateDescriptorSetLayout(m_device->GetDevice(), &layoutInfo, nullptr, &m_descriptorSetLayout) != VK_SUCCESS)
+    if (vkCreateDescriptorSetLayout(m_device->GetDevice(), &perFrameLayoutInfo, nullptr, &m_perFrameSetLayout) != VK_SUCCESS)
     {
-        throw std::runtime_error("failed to create descriptor set layout!");
+        throw std::runtime_error("failed to create per-frame descriptor set layout!");
+    }
+
+    VkDescriptorSetLayoutBinding perObjectBinding{};
+    perObjectBinding.binding = 0;
+    perObjectBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+    perObjectBinding.descriptorCount = 1;
+    perObjectBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo perObjectLayoutInfo{};
+    perObjectLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    perObjectLayoutInfo.bindingCount = 1;
+    perObjectLayoutInfo.pBindings = &perObjectBinding;
+
+    if (vkCreateDescriptorSetLayout(m_device->GetDevice(), &perObjectLayoutInfo, nullptr, &m_perObjectSetLayout) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create per-object descriptor set layout!");
     }
 }
 
@@ -107,12 +163,17 @@ VkDescriptorPool DescriptorsManager::GetDescriptorPool()
     return m_descriptorPool;
 }
 
-std::vector<VkDescriptorSet> DescriptorsManager::GetDescriptorSets()
+VkDescriptorSetLayout DescriptorsManager::GetDescriptorSetLayout(uint32_t index)
 {
-    return m_descriptorSets;
+    return index == 0 ? m_perFrameSetLayout : m_perObjectSetLayout;
 }
 
-VkDescriptorSetLayout DescriptorsManager::GetDescriptorSetLayout()
+std::vector<VkDescriptorSet> DescriptorsManager::GetDescriptorSets()
 {
-    return m_descriptorSetLayout;
+    return m_perFrameDescriptorSets;
+}
+
+std::vector<VkDescriptorSet> DescriptorsManager::GetPerObjectDescriptorSets()
+{
+    return m_perObjectDescriptorSets;
 }

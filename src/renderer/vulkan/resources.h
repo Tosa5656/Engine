@@ -13,12 +13,18 @@
 #include <renderer/vulkan/swapchain.h>
 #include <renderer/vulkan/camera.h>
 
-struct UniformBufferObject
+struct PerFrameUBO
 {
-    alignas(16) glm::mat4 model;
     alignas(16) glm::mat4 view;
     alignas(16) glm::mat4 proj;
+};
+
+struct PerObjectUBO
+{
+    alignas(16) glm::mat4 model;
     alignas(16) glm::vec3 color;
+    float roughness;
+    alignas(16) glm::vec3 padding;
 };
 
 class ResourceManager
@@ -31,20 +37,32 @@ public:
     void Cleanup();
 
     void CreateUniformBuffers();
+    void CreateObjectBuffer(uint32_t maxObjects);
     void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkBuffer& buffer, VmaAllocation& allocation);
     void CreateAllocator();
 
-    void UpdateUniformBuffer(uint32_t currentImage, const glm::mat4& model, Camera& camera, const glm::vec3& orbitTarget, float orbitDistance, float orbitYaw, float orbitPitch);
+    void UpdatePerFrameUBO(uint32_t currentImage, Camera& camera, const glm::vec3& orbitTarget, float orbitDistance, float orbitYaw, float orbitPitch);
+    void UpdatePerObjectUBO(uint32_t slot, const glm::mat4& model, const glm::vec3& color, float roughness);
+    uint32_t AllocateObjectSlot();
 
-    std::vector<VkBuffer>& GetUniformBuffers();
-    std::vector<VmaAllocation> GetUniformBufferAllocation();
+    std::vector<VkBuffer>& GetPerFrameBuffers();
+    std::vector<VmaAllocation> GetPerFrameBufferAllocations();
+    VkBuffer GetObjectBuffer() const { return m_objectBuffer; }
+    VmaAllocation GetObjectBufferAllocation() const { return m_objectAllocation; }
+    uint32_t GetObjectUBOStride() const { return m_objectUBOStride; }
     VmaAllocator GetAllocator();
+
 private:
     Device* m_device;
     SwapChain* m_swapChain;
     Instance* m_instance;
 
-    std::vector<VkBuffer> m_uniformBuffers;
-    std::vector<VmaAllocation> m_uniformAllocations;
+    std::vector<VkBuffer> m_perFrameBuffers;
+    std::vector<VmaAllocation> m_perFrameAllocations;
+    VkBuffer m_objectBuffer = VK_NULL_HANDLE;
+    VmaAllocation m_objectAllocation = VK_NULL_HANDLE;
+    uint32_t m_objectUBOStride = 0;
+    uint32_t m_objectCount = 0;
+    std::vector<uint32_t> m_freeSlots;
     VmaAllocator m_allocator = VK_NULL_HANDLE;
 };

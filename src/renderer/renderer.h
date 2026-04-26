@@ -1,6 +1,7 @@
 #pragma once
 
 #include <iostream>
+#include <vector>
 #include <ranges>
 #include <optional>
 #include <set>
@@ -91,12 +92,12 @@ private:
     ResourceManager m_resourceManager;
     Mesh m_mesh;
 
-    Object m_object;
+    std::vector<Object> m_objects;
     Camera m_camera;
 
-    float m_orbitYaw = 0.0f;
-    float m_orbitPitch = 0.5f;
-    float m_orbitDistance = 800.0f;
+    float m_orbitYaw = 0.5f;
+    float m_orbitPitch = 1.2f;
+    float m_orbitDistance = 1500.0f;
 
     std::array<VkSemaphore, MAX_FRAMES_IN_FLIGHT> m_imageAvailableSemaphores;
     std::vector<VkSemaphore> m_renderFinishedSemaphores;

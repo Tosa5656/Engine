@@ -6,18 +6,27 @@ layout(location = 2) in vec2 inUV;
 
 layout(location = 0) out vec3 fragNormal;
 layout(location = 1) out vec2 fragUV;
+layout(location = 2) out vec3 fragColor;
 
-layout(binding = 0) uniform UniformBufferObject
+layout(set = 0, binding = 0) uniform PerFrameUBO
 {
-    mat4 model;
     mat4 view;
     mat4 proj;
+} perFrame;
+
+layout(set = 1, binding = 0) uniform PerObjectUBO
+{
+    mat4 model;
     vec3 color;
-} ubo;
+    float roughness;
+    vec3 padding;
+} perObject;
 
 void main()
 {
-    gl_Position = ubo.proj * ubo.view * ubo.model * vec4(inPosition, 1.0);
-    fragNormal = mat3(transpose(inverse(ubo.model))) * inNormal;
+    mat4 mvp = perFrame.proj * perFrame.view * perObject.model;
+    gl_Position = mvp * vec4(inPosition, 1.0);
+    fragNormal = mat3(transpose(inverse(perObject.model))) * inNormal;
     fragUV = inUV;
+    fragColor = perObject.color;
 }

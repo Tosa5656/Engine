@@ -14,13 +14,19 @@ void ResourceManager::Create(Device* device, SwapChain* swapChain, Instance* ins
 
 void ResourceManager::Cleanup()
 {
-    for (size_t i = 0; i < m_uniformBuffers.size(); i++)
+    for (size_t i = 0; i < m_perFrameBuffers.size(); i++)
     {
-        if (m_uniformBuffers[i] != VK_NULL_HANDLE)
-            vmaDestroyBuffer(m_allocator, m_uniformBuffers[i], m_uniformAllocations[i]);
+        if (m_perFrameBuffers[i] != VK_NULL_HANDLE)
+            vmaDestroyBuffer(m_allocator, m_perFrameBuffers[i], m_perFrameAllocations[i]);
     }
-    m_uniformBuffers.clear();
-    m_uniformAllocations.clear();
+    m_perFrameBuffers.clear();
+    m_perFrameAllocations.clear();
+
+    if (m_objectBuffer != VK_NULL_HANDLE)
+    {
+        vmaDestroyBuffer(m_allocator, m_objectBuffer, m_objectAllocation);
+        m_objectBuffer = VK_NULL_HANDLE;
+    }
 }
 
 void ResourceManager::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkBuffer& buffer, VmaAllocation& allocation)
@@ -42,18 +48,35 @@ void ResourceManager::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, 
 
 void ResourceManager::CreateUniformBuffers()
 {
-    VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+    VkDeviceSize bufferSize = sizeof(PerFrameUBO);
 
-    m_uniformBuffers.resize(m_swapChain->GetSwapChainImages().size());
-    m_uniformAllocations.resize(m_swapChain->GetSwapChainImages().size());
+    m_perFrameBuffers.resize(m_swapChain->GetSwapChainImages().size());
+    m_perFrameAllocations.resize(m_swapChain->GetSwapChainImages().size());
 
     for (size_t i = 0; i < m_swapChain->GetSwapChainImages().size(); i++)
     {
-        CreateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, m_uniformBuffers[i], m_uniformAllocations[i]);
+        CreateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, m_perFrameBuffers[i], m_perFrameAllocations[i]);
     }
 }
 
-void ResourceManager::UpdateUniformBuffer(uint32_t currentImage, const glm::mat4& model, Camera& camera, const glm::vec3& orbitTarget, float orbitDistance, float orbitYaw, float orbitPitch)
+void ResourceManager::CreateObjectBuffer(uint32_t maxObjects)
+{
+    VkPhysicalDevice physicalDevice = m_device->GetPhysicalDevice();
+    
+    VkPhysicalDeviceProperties props;
+    vkGetPhysicalDeviceProperties(physicalDevice, &props);
+    m_objectUBOStride = static_cast<uint32_t>(sizeof(PerObjectUBO));
+    uint32_t alignment = static_cast<uint32_t>(props.limits.minUniformBufferOffsetAlignment);
+    if (alignment > 0)
+    {
+        m_objectUBOStride = ((m_objectUBOStride + alignment - 1) / alignment) * alignment;
+    }
+
+    VkDeviceSize bufferSize = static_cast<VkDeviceSize>(m_objectUBOStride) * maxObjects;
+    CreateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, m_objectBuffer, m_objectAllocation);
+}
+
+void ResourceManager::UpdatePerFrameUBO(uint32_t currentImage, Camera& camera, const glm::vec3& orbitTarget, float orbitDistance, float orbitYaw, float orbitPitch)
 {
     float cosPitch = glm::cos(orbitPitch);
     float sinPitch = glm::sin(orbitPitch);
@@ -70,16 +93,40 @@ void ResourceManager::UpdateUniformBuffer(uint32_t currentImage, const glm::mat4
     camera.SetPosition(cameraPos);
     camera.SetTarget(orbitTarget);
 
-    UniformBufferObject ubo{};
-    ubo.model = model;
+    PerFrameUBO ubo{};
     ubo.view = camera.GetViewMatrix();
     ubo.proj = camera.GetProjectionMatrix();
-    ubo.color = glm::vec3(0.5f, 0.5f, 0.5f);
 
     void* data;
-    vmaMapMemory(m_allocator, m_uniformAllocations[currentImage], &data);
+    vmaMapMemory(m_allocator, m_perFrameAllocations[currentImage], &data);
     memcpy(data, &ubo, sizeof(ubo));
-    vmaUnmapMemory(m_allocator, m_uniformAllocations[currentImage]);
+    vmaUnmapMemory(m_allocator, m_perFrameAllocations[currentImage]);
+}
+
+void ResourceManager::UpdatePerObjectUBO(uint32_t slot, const glm::mat4& model, const glm::vec3& color, float roughness)
+{
+    PerObjectUBO ubo{};
+    ubo.model = model;
+    ubo.color = color;
+    ubo.roughness = roughness;
+
+    VkDeviceSize offset = static_cast<VkDeviceSize>(slot) * m_objectUBOStride;
+    void* data;
+    vmaMapMemory(m_allocator, m_objectAllocation, &data);
+    char* ptr = static_cast<char*>(data) + offset;
+    memcpy(ptr, &ubo, sizeof(PerObjectUBO));
+    vmaUnmapMemory(m_allocator, m_objectAllocation);
+}
+
+uint32_t ResourceManager::AllocateObjectSlot()
+{
+    if (!m_freeSlots.empty())
+    {
+        uint32_t slot = m_freeSlots.back();
+        m_freeSlots.pop_back();
+        return slot;
+    }
+    return m_objectCount++;
 }
 
 void ResourceManager::CreateAllocator()
@@ -94,14 +141,14 @@ void ResourceManager::CreateAllocator()
         throw std::runtime_error("failed to create VMA allocator!");
 }
 
-std::vector<VkBuffer>& ResourceManager::GetUniformBuffers()
+std::vector<VkBuffer>& ResourceManager::GetPerFrameBuffers()
 {
-    return m_uniformBuffers;
+    return m_perFrameBuffers;
 }
 
-std::vector<VmaAllocation> ResourceManager::GetUniformBufferAllocation()
+std::vector<VmaAllocation> ResourceManager::GetPerFrameBufferAllocations()
 {
-    return m_uniformAllocations;
+    return m_perFrameAllocations;
 }
 
 VmaAllocator ResourceManager::GetAllocator()

@@ -28,14 +28,22 @@ void Renderer::Init(GLFWwindow *window)
     m_resourceManager.CreateAllocator();
     m_swapChain.Create(&m_device, m_window, &m_surface);
     m_swapChain.CreateImageViews(&m_device);
-    m_descriptorManager.Init(&m_device, &m_swapChain, &m_resourceManager);
+    m_descriptorManager.Init(&m_device, &m_swapChain, &m_resourceManager, 256);
     m_descriptorManager.CreateDescriptorSetLayout();
-    m_pipelineManager.Create(&m_device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout());
+    m_pipelineManager.Create(&m_device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetDescriptorSetLayout(1));
     m_commandBufferManager.Init(m_device.GetDevice(), m_device.GetGraphicsQueueFamilyIndex(&m_surface));
     m_resourceManager.CreateUniformBuffers();
+    m_resourceManager.CreateObjectBuffer(256);
 
-    m_object.Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), "models/cat.obj");
+    m_objects.resize(10);
+    for (size_t i = 0; i < m_objects.size(); i++)
+    {
+        m_objects[i].Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), &m_resourceManager, "models/cat.obj");
+        float angle = (float)i * 6.28f / 10.0f;
+        m_objects[i].GetTransform()->SetPosition(glm::vec3(glm::cos(angle) * 300.0f, 0.0f, glm::sin(angle) * 300.0f));
+    }
 
+    m_camera.SetPosition(glm::vec3(800.0f, 500.0f, 800.0f));
     m_camera.SetAspectRatio(m_swapChain.GetSwapChainExtent().width / (float)m_swapChain.GetSwapChainExtent().height);
 
     m_descriptorManager.CreateDescriptorPool();
@@ -73,8 +81,13 @@ void Renderer::Draw()
     }
     m_imagesInFlight[imageIndex] = m_inFlightFences[m_currentFrame];
 
-    m_orbitYaw += 0.01f;
-    m_resourceManager.UpdateUniformBuffer(imageIndex, m_object.GetTransform()->GetTransformationMatrix(), m_camera, glm::vec3(0.0f, 100.0f, 0.0f), m_orbitDistance, m_orbitYaw, m_orbitPitch);
+    m_orbitYaw += 0.001f;
+    m_resourceManager.UpdatePerFrameUBO(imageIndex, m_camera, glm::vec3(0.0f, 100.0f, 0.0f), m_orbitDistance, m_orbitYaw, m_orbitPitch);
+
+    for (auto& obj : m_objects)
+    {
+        obj.UpdateUBO(&m_resourceManager, glm::vec3(0.5f, 0.5f, 0.5f), 0.5f);
+    }
 
     VkCommandBuffer cmd = m_commandBufferManager.GetCommandBuffer(m_currentFrame);
     vkResetCommandBuffer(cmd, 0);
@@ -140,7 +153,12 @@ void Renderer::Draw()
 
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 0, 1, &m_descriptorManager.GetDescriptorSets()[imageIndex], 0, nullptr);
 
-    m_object.Draw(cmd);
+    for (auto& obj : m_objects)
+    {
+        uint32_t dynamicOffset = obj.GetUBOSlot() * m_resourceManager.GetObjectUBOStride();
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 1, 1, m_descriptorManager.GetPerObjectDescriptorSets().data(), 1, &dynamicOffset);
+        obj.Draw(cmd, m_descriptorManager.GetPerObjectDescriptorSets()[0], m_resourceManager.GetObjectUBOStride());
+    }
 
     vkCmdEndRendering(cmd);
 
@@ -231,7 +249,12 @@ void Renderer::Destroy()
     m_swapChain.Cleanup(&m_device);
     m_pipelineManager.Shutdown(&m_device);
     m_descriptorManager.Cleanup();
-    m_object.Destroy();
+
+    for (auto& obj : m_objects)
+    {
+        obj.Destroy();
+    }
+
     m_commandBufferManager.Shutdown();
     m_resourceManager.Cleanup();
 
