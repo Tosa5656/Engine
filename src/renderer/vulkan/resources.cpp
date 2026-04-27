@@ -150,3 +150,7 @@ VmaAllocator ResourceManager::GetAllocator()
 {
     return m_allocator;
 }
+
+VkDevice ResourceManager::GetVkDevice() {
+    return m_device->GetDevice();
+}

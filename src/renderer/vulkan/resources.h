@@ -47,6 +47,8 @@ public:
     void UpdatePerObjectUBO(uint32_t slot, const PerObjectUBO& data);
     uint32_t AllocateObjectSlot();
 
+    VkDevice GetVkDevice();
+
     std::vector<VkBuffer>& GetPerFrameBuffers();
     std::vector<VmaAllocation> GetPerFrameBufferAllocations();
     VkBuffer GetObjectBuffer() const { return m_objectBuffer; }
