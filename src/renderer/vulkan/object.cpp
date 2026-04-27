@@ -48,7 +48,28 @@ void Object::SetDeviceAndAllocator(Device* device, CommandBufferManager* cmdMana
     m_allocator = allocator;
 }
 
-void Object::UpdateUBO(ResourceManager* resourceManager, const glm::vec3& color, float roughness)
+void Object::SetMaterial(Material* material)
 {
-    resourceManager->UpdatePerObjectUBO(m_uboSlot, m_transform.GetTransformationMatrix(), color, roughness);
+    m_material = material;
+}
+
+void Object::UpdateUBO(ResourceManager* resourceManager)
+{
+    if (m_material)
+    {
+        PerObjectUBO uboData = m_material->GetData();
+        uboData.model = m_transform.GetTransformationMatrix();
+        resourceManager->UpdatePerObjectUBO(m_uboSlot, uboData);
+    }
+    else
+    {
+        PerObjectUBO uboData{};
+        uboData.model = m_transform.GetTransformationMatrix();
+        uboData.albedo = glm::vec3(0.5f, 0.5f, 0.5f);
+        uboData.metallic = 0.0f;
+        uboData.roughness = 0.5f;
+        uboData.ao = 1.0f;
+        uboData.normalStrength = 1.0f;
+        resourceManager->UpdatePerObjectUBO(m_uboSlot, uboData);
+    }
 }
