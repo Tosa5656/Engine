@@ -2,10 +2,12 @@
 
 void Texture::Load(std::string filepath) {
     m_filepath = filepath;
-    if (!m_filepath.empty())
+    if (m_filepath.empty())
     {
         return;
     }
+
+    m_device = m_resourceManager->GetVkDevice();
 
     stbi_uc* pixels = stbi_load(m_filepath.c_str(), &m_texWidth, &m_texHeight, &m_texChannels, STBI_rgb_alpha);
     VkDeviceSize m_imageSize = m_texWidth * m_texHeight * 4;
@@ -52,15 +54,9 @@ void Texture::Load(std::string filepath) {
     VkMemoryRequirements memRequirements;
     vkGetImageMemoryRequirements(m_device, textureImage, &memRequirements);
 
-    VkMemoryAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = memRequirements.size;
-    //allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT); //TODO: IT'S NOT WORKING, I'LL FIX IT.
+    m_allocator = m_resourceManager->GetAllocator();
 
-    if (vkAllocateMemory(m_device, &allocInfo, nullptr, &textureImageMemory) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate image memory!");
-    }
-
-    vkBindImageMemory(m_device, textureImage, textureImageMemory, 0);
-
+    VmaAllocationCreateInfo allocInfo = {};
+    allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+    vmaCreateImage(m_allocator, &imageInfo, &allocInfo, &textureImage, &textureImageMemory, nullptr);
 }

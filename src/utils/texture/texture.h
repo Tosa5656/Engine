@@ -15,11 +15,12 @@ class Texture
         ResourceManager* m_resourceManager;
 
         VkImage textureImage;
-        VkDeviceMemory textureImageMemory;
+        VmaAllocation textureImageMemory;
         VkBuffer stagingBuffer;
         VmaAllocation stagingBufferAllocation;
+        VmaAllocator m_allocator;
 
-        VkDevice m_device = m_resourceManager->GetVkDevice();
+        VkDevice m_device;
 
     public:
         Texture();
