@@ -61,6 +61,11 @@ void Renderer::Init(GLFWwindow *window)
 
     m_descriptorManager.CreateDescriptorPool();
     m_descriptorManager.CreateDescriptorSets();
+
+    m_textures.push_back(Texture(&m_resourceManager, &m_device, &m_commandBufferManager));
+    m_textures[0].Load("textures/wall.jpg");
+    m_descriptorManager.UpdateTextureDescriptor(m_textures[0].GetImageView(), m_textures[0].GetSampler());
+
     CreateSyncObjects();
     m_imagesInFlight.resize(m_swapChain.GetSwapChainImages().size(), VK_NULL_HANDLE);
 }

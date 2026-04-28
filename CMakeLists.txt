@@ -73,6 +73,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(stb)
 
 include_directories(${stb_SOURCE_DIR})
+target_include_directories(${PROJECT_NAME} PRIVATE ${stb_SOURCE_DIR})
 
 target_link_libraries(${PROJECT_NAME} PRIVATE GPUOpen::VulkanMemoryAllocator)
 
@@ -128,4 +129,8 @@ endfunction()
 
 copy_resources("${CMAKE_CURRENT_SOURCE_DIR}/resources/models"
         "${CMAKE_BINARY_DIR}/models"
+)
+
+copy_resources("${CMAKE_CURRENT_SOURCE_DIR}/resources/textures"
+        "${CMAKE_BINARY_DIR}/textures"
 )

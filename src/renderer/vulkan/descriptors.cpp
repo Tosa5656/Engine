@@ -34,17 +34,19 @@ void DescriptorsManager::Cleanup()
 
 void DescriptorsManager::CreateDescriptorPool()
 {
-    std::vector<VkDescriptorPoolSize> poolSizes(2);
+    std::vector<VkDescriptorPoolSize> poolSizes(3);
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSizes[0].descriptorCount = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size());
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
     poolSizes[1].descriptorCount = 256;
+    poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[2].descriptorCount = 256;
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
     poolInfo.pPoolSizes = poolSizes.data();
-    poolInfo.maxSets = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size()) + 1;
+    poolInfo.maxSets = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size()) + 256;
 
     if (vkCreateDescriptorPool(m_device->GetDevice(), &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS)
     {
@@ -147,10 +149,18 @@ void DescriptorsManager::CreateDescriptorSetLayout()
     perObjectBinding.descriptorCount = 1;
     perObjectBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
+    VkDescriptorSetLayoutBinding samplerBinding{};
+    samplerBinding.binding = 1;
+    samplerBinding.descriptorCount = 1;
+    samplerBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    samplerBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    std::array<VkDescriptorSetLayoutBinding, 2> perObjectBindings = {perObjectBinding, samplerBinding};
+
     VkDescriptorSetLayoutCreateInfo perObjectLayoutInfo{};
     perObjectLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    perObjectLayoutInfo.bindingCount = 1;
-    perObjectLayoutInfo.pBindings = &perObjectBinding;
+    perObjectLayoutInfo.bindingCount = 2;
+    perObjectLayoutInfo.pBindings = perObjectBindings.data();
 
     if (vkCreateDescriptorSetLayout(m_device->GetDevice(), &perObjectLayoutInfo, nullptr, &m_perObjectSetLayout) != VK_SUCCESS)
     {
@@ -176,4 +186,22 @@ std::vector<VkDescriptorSet> DescriptorsManager::GetDescriptorSets()
 std::vector<VkDescriptorSet> DescriptorsManager::GetPerObjectDescriptorSets()
 {
     return m_perObjectDescriptorSets;
+}
+
+void DescriptorsManager::UpdateTextureDescriptor(VkImageView imageView, VkSampler sampler)
+{
+    VkDescriptorImageInfo imageInfo{};
+    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageInfo.imageView = imageView;
+    imageInfo.sampler = sampler;
+
+    VkWriteDescriptorSet descriptorWrite{};
+    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrite.dstSet = m_perObjectDescriptorSets[0];
+    descriptorWrite.dstBinding = 1;
+    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    descriptorWrite.descriptorCount = 1;
+    descriptorWrite.pImageInfo = &imageInfo;
+
+    vkUpdateDescriptorSets(m_device->GetDevice(), 1, &descriptorWrite, 0, nullptr);
 }

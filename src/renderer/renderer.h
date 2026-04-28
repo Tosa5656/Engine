@@ -31,6 +31,7 @@
 #include <renderer/vulkan/object.h>
 #include <renderer/vulkan/material.h>
 #include <renderer/vulkan/camera.h>
+#include <utils/texture/texture.h>
 
 static bool is_glfw_initialized = false;
 
@@ -95,6 +96,7 @@ private:
 
     std::vector<Object> m_objects;
     std::vector<Material> m_materials;
+    std::vector<Texture> m_textures;
     Camera m_camera;
 
     float m_orbitYaw = 0.5f;

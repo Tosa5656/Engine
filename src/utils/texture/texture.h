@@ -1,10 +1,9 @@
 #pragma once
 #include <string>
 #include <vulkan/vulkan.h>
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
 #include <stdexcept>
 #include "renderer/vulkan/resources.h"
+#include "renderer/vulkan/commandbuffer.h"
 
 class Texture
 {
@@ -13,17 +12,20 @@ class Texture
         int m_texWidth, m_texHeight, m_texChannels = 0;
 
         ResourceManager* m_resourceManager;
+        CommandBufferManager* m_commandBufferManager;
 
         VkImage textureImage;
         VmaAllocation textureImageMemory;
+        VkImageView textureImageView;
+        VkSampler textureSampler;
         VkBuffer stagingBuffer;
         VmaAllocation stagingBufferAllocation;
         VmaAllocator m_allocator;
 
-        VkDevice m_device;
+        Device* m_device;
 
     public:
-        Texture();
+        Texture(ResourceManager* resourceManager, Device* device, CommandBufferManager* commandBufferManager);
 
         ~Texture()
         {
@@ -32,4 +34,7 @@ class Texture
 
         void Load(std::string filepath);
         void DestroyImage();
+
+        VkImageView GetImageView() { return textureImageView; }
+        VkSampler GetSampler() { return textureSampler; }
 };

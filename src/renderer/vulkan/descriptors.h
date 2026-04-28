@@ -30,6 +30,8 @@ public:
     std::vector<VkDescriptorSet> GetDescriptorSets();
     std::vector<VkDescriptorSet> GetPerObjectDescriptorSets();
 
+    void UpdateTextureDescriptor(VkImageView imageView, VkSampler sampler);
+
 private:
     Device* m_device;
     SwapChain* m_swapChain;
