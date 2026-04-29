@@ -36,22 +36,9 @@ void Renderer::Init(GLFWwindow *window)
     m_resourceManager.CreateObjectBuffer(256);
 
     m_objects.resize(10);
-    m_materials.resize(10);
-    m_materials[0] = Material(glm::vec3(1.0f, 0.0f, 0.0f), 0.0f, 0.3f);
-    m_materials[1] = Material(glm::vec3(0.0f, 1.0f, 0.0f), 1.0f, 0.5f);
-    m_materials[2] = Material(glm::vec3(0.0f, 0.0f, 1.0f), 1.0f, 0.7f);
-    m_materials[3] = Material(glm::vec3(1.0f, 1.0f, 0.0f), 0.5f, 0.3f);
-    m_materials[4] = Material(glm::vec3(1.0f, 0.0f, 1.0f), 0.5f, 0.5f);
-    m_materials[5] = Material(glm::vec3(0.0f, 1.0f, 1.0f), 0.5f, 0.7f);
-    m_materials[6] = Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.8f, 0.2f);
-    m_materials[7] = Material(glm::vec3(0.5f, 0.3f, 0.1f), 0.0f, 0.6f);
-    m_materials[8] = Material(glm::vec3(0.3f, 0.5f, 0.8f), 0.9f, 0.1f);
-    m_materials[9] = Material(glm::vec3(0.8f, 0.2f, 0.4f), 0.3f, 0.4f);
-
     for (size_t i = 0; i < m_objects.size(); i++)
     {
         m_objects[i].Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), &m_resourceManager, "models/cat.obj");
-        m_objects[i].SetMaterial(&m_materials[i]);
         float angle = (float)i * 6.28f / 10.0f;
         m_objects[i].GetTransform()->SetPosition(glm::vec3(glm::cos(angle) * 300.0f, 0.0f, glm::sin(angle) * 300.0f));
     }
@@ -99,7 +86,7 @@ void Renderer::Draw()
 
     for (auto& obj : m_objects)
     {
-        obj.UpdateUBO(&m_resourceManager);
+        obj.UpdateUBO(&m_resourceManager, glm::vec3(0.5f, 0.5f, 0.5f), 0.5f);
     }
 
     VkCommandBuffer cmd = m_commandBufferManager.GetCommandBuffer(m_currentFrame);

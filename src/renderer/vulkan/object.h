@@ -11,7 +11,6 @@
 #include <renderer/vulkan/commandbuffer.h>
 #include <renderer/vulkan/swapchain.h>
 #include <renderer/vulkan/resources.h>
-#include <renderer/vulkan/material.h>
 #include <utils/vars/transform.h>
 
 class Object
@@ -27,11 +26,9 @@ public:
     Mesh* GetMesh();
     Transform* GetTransform();
     uint32_t GetUBOSlot() const { return m_uboSlot; }
-    Material* GetMaterial() { return m_material; }
 
     void SetDeviceAndAllocator(Device* device, CommandBufferManager* cmdManager, VmaAllocator allocator);
-    void SetMaterial(Material* material);
-    void UpdateUBO(ResourceManager* resourceManager);
+    void UpdateUBO(ResourceManager* resourceManager, const glm::vec3& color, float roughness);
 
 private:
     Device* m_device = nullptr;
@@ -39,7 +36,6 @@ private:
     VmaAllocator m_allocator = VK_NULL_HANDLE;
 
     uint32_t m_uboSlot = 0;
-    Material* m_material = nullptr;
 
     Mesh m_mesh;
     Transform m_transform = Transform(glm::vec3(0, 0, 0), glm::vec3(0, 0, 0), glm::vec3(1, 1, 1));

@@ -29,7 +29,6 @@
 #include <renderer/vulkan/mesh.h>
 #include <renderer/vulkan/resources.h>
 #include <renderer/vulkan/object.h>
-#include <renderer/vulkan/material.h>
 #include <renderer/vulkan/camera.h>
 
 static bool is_glfw_initialized = false;
@@ -94,7 +93,6 @@ private:
     Mesh m_mesh;
 
     std::vector<Object> m_objects;
-    std::vector<Material> m_materials;
     Camera m_camera;
 
     float m_orbitYaw = 0.5f;

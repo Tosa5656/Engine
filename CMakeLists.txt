@@ -23,10 +23,7 @@ set(PROJECT_SOURCES src/main.cpp
                     src/renderer/vulkan/mesh.cpp
                     src/utils/vars/transform.cpp
                     src/renderer/vulkan/object.cpp
-                    src/renderer/vulkan/camera.cpp
-                    src/renderer/vulkan/material.cpp
-        src/utils/texture/texture.cpp
-        src/utils/texture/texture.h)
+                    src/renderer/vulkan/camera.cpp)
 add_executable(${PROJECT_NAME} ${PROJECT_SOURCES})
 include_directories(src/)
 
@@ -64,15 +61,6 @@ FetchContent_Declare(
 )
 
 FetchContent_MakeAvailable(VulkanMemoryAllocator)
-
-FetchContent_Declare(
-        stb
-        GIT_REPOSITORY https://github.com/nothings/stb.git
-        GIT_TAG master
-)
-FetchContent_MakeAvailable(stb)
-
-include_directories(${stb_SOURCE_DIR})
 
 target_link_libraries(${PROJECT_NAME} PRIVATE GPUOpen::VulkanMemoryAllocator)
 

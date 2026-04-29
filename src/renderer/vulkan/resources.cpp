@@ -103,13 +103,18 @@ void ResourceManager::UpdatePerFrameUBO(uint32_t currentImage, Camera& camera, c
     vmaUnmapMemory(m_allocator, m_perFrameAllocations[currentImage]);
 }
 
-void ResourceManager::UpdatePerObjectUBO(uint32_t slot, const PerObjectUBO& uboData)
+void ResourceManager::UpdatePerObjectUBO(uint32_t slot, const glm::mat4& model, const glm::vec3& color, float roughness)
 {
+    PerObjectUBO ubo{};
+    ubo.model = model;
+    ubo.color = color;
+    ubo.roughness = roughness;
+
     VkDeviceSize offset = static_cast<VkDeviceSize>(slot) * m_objectUBOStride;
-    void* mappedData;
-    vmaMapMemory(m_allocator, m_objectAllocation, &mappedData);
-    char* ptr = static_cast<char*>(mappedData) + offset;
-    memcpy(ptr, &uboData, sizeof(PerObjectUBO));
+    void* data;
+    vmaMapMemory(m_allocator, m_objectAllocation, &data);
+    char* ptr = static_cast<char*>(data) + offset;
+    memcpy(ptr, &ubo, sizeof(PerObjectUBO));
     vmaUnmapMemory(m_allocator, m_objectAllocation);
 }
 
