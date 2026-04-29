@@ -22,9 +22,11 @@ struct PerFrameUBO
 struct PerObjectUBO
 {
     alignas(16) glm::mat4 model;
-    alignas(16) glm::vec3 color;
+    alignas(16) glm::vec3 albedo;
+    float metallic;
     float roughness;
-    alignas(16) glm::vec3 padding;
+    float ao;
+    float normalStrength;
 };
 
 class ResourceManager
@@ -42,7 +44,7 @@ public:
     void CreateAllocator();
 
     void UpdatePerFrameUBO(uint32_t currentImage, Camera& camera, const glm::vec3& orbitTarget, float orbitDistance, float orbitYaw, float orbitPitch);
-    void UpdatePerObjectUBO(uint32_t slot, const glm::mat4& model, const glm::vec3& color, float roughness);
+    void UpdatePerObjectUBO(uint32_t slot, const PerObjectUBO& data);
     uint32_t AllocateObjectSlot();
 
     VkDevice GetVkDevice();
