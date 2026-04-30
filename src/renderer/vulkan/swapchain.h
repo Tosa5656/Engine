@@ -27,6 +27,9 @@ public:
     VkFormat GetSwapChainImageFormat();
     VkExtent2D GetSwapChainExtent();
     std::vector<VkImageView> GetSwapChainImageViews();
+    VkImageView GetDepthImageView();
+    VkFormat GetDepthFormat();
+    VkImage GetDepthImage();
 
 private:
     Device* m_device = nullptr;
@@ -37,4 +40,12 @@ private:
     VkFormat m_swapChainImageFormat;
     VkExtent2D m_swapChainExtent;
     std::vector<VkImageView> m_swapChainImageViews;
+
+    VkImage m_depthImage = VK_NULL_HANDLE;
+    VkDeviceMemory m_depthImageMemory = VK_NULL_HANDLE;
+    VkImageView m_depthImageView = VK_NULL_HANDLE;
+    VkFormat m_depthFormat = VK_FORMAT_D32_SFLOAT;
+
+    void CreateDepthResources(Device* device);
+    uint32_t FindMemoryType(Device* device, uint32_t typeFilter, VkMemoryPropertyFlags properties);
 };

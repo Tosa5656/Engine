@@ -93,8 +93,8 @@ private:
     ResourceManager m_resourceManager;
     Mesh m_mesh;
 
-    std::vector<Object> m_objects;
-    std::vector<Material> m_materials;
+    Object m_object;
+    Material m_material;
     Camera m_camera;
 
     float m_orbitYaw = 0.5f;

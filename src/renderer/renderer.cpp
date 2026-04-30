@@ -33,28 +33,12 @@ void Renderer::Init(GLFWwindow *window)
     m_pipelineManager.Create(&m_device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetDescriptorSetLayout(1));
     m_commandBufferManager.Init(m_device.GetDevice(), m_device.GetGraphicsQueueFamilyIndex(&m_surface));
     m_resourceManager.CreateUniformBuffers();
-    m_resourceManager.CreateObjectBuffer(256);
+    m_resourceManager.CreateObjectBuffer(1);
 
-    m_objects.resize(10);
-    m_materials.resize(10);
-    m_materials[0] = Material(glm::vec3(1.0f, 0.0f, 0.0f), 0.0f, 0.3f);
-    m_materials[1] = Material(glm::vec3(0.0f, 1.0f, 0.0f), 1.0f, 0.5f);
-    m_materials[2] = Material(glm::vec3(0.0f, 0.0f, 1.0f), 1.0f, 0.7f);
-    m_materials[3] = Material(glm::vec3(1.0f, 1.0f, 0.0f), 0.5f, 0.3f);
-    m_materials[4] = Material(glm::vec3(1.0f, 0.0f, 1.0f), 0.5f, 0.5f);
-    m_materials[5] = Material(glm::vec3(0.0f, 1.0f, 1.0f), 0.5f, 0.7f);
-    m_materials[6] = Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.8f, 0.2f);
-    m_materials[7] = Material(glm::vec3(0.5f, 0.3f, 0.1f), 0.0f, 0.6f);
-    m_materials[8] = Material(glm::vec3(0.3f, 0.5f, 0.8f), 0.9f, 0.1f);
-    m_materials[9] = Material(glm::vec3(0.8f, 0.2f, 0.4f), 0.3f, 0.4f);
-
-    for (size_t i = 0; i < m_objects.size(); i++)
-    {
-        m_objects[i].Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), &m_resourceManager, "models/cat.obj");
-        m_objects[i].SetMaterial(&m_materials[i]);
-        float angle = (float)i * 6.28f / 10.0f;
-        m_objects[i].GetTransform()->SetPosition(glm::vec3(glm::cos(angle) * 300.0f, 0.0f, glm::sin(angle) * 300.0f));
-    }
+    m_material = Material(glm::vec3(1.0f, 1.0f, 1.0f), 1.0f, 1.0f);
+    m_object.Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), &m_resourceManager, "models/cat.obj");
+    m_object.SetMaterial(&m_material);
+    m_object.GetTransform()->SetPosition(glm::vec3(0.0f, 0.0f, 0.0f));
 
     m_camera.SetPosition(glm::vec3(800.0f, 500.0f, 800.0f));
     m_camera.SetAspectRatio(m_swapChain.GetSwapChainExtent().width / (float)m_swapChain.GetSwapChainExtent().height);
@@ -97,10 +81,7 @@ void Renderer::Draw()
     m_orbitYaw += 0.001f;
     m_resourceManager.UpdatePerFrameUBO(imageIndex, m_camera, glm::vec3(0.0f, 100.0f, 0.0f), m_orbitDistance, m_orbitYaw, m_orbitPitch);
 
-    for (auto& obj : m_objects)
-    {
-        obj.UpdateUBO(&m_resourceManager);
-    }
+    m_object.UpdateUBO(&m_resourceManager);
 
     VkCommandBuffer cmd = m_commandBufferManager.GetCommandBuffer(m_currentFrame);
     vkResetCommandBuffer(cmd, 0);
@@ -131,6 +112,29 @@ void Renderer::Draw()
         0, nullptr,
         1, &barrier);
 
+    VkImageMemoryBarrier depthBarrier{};
+    depthBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    depthBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    depthBarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    depthBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    depthBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    depthBarrier.image = m_swapChain.GetDepthImage();
+    depthBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    depthBarrier.subresourceRange.baseMipLevel = 0;
+    depthBarrier.subresourceRange.levelCount = 1;
+    depthBarrier.subresourceRange.baseArrayLayer = 0;
+    depthBarrier.subresourceRange.layerCount = 1;
+    depthBarrier.srcAccessMask = 0;
+    depthBarrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+
+    vkCmdPipelineBarrier(cmd,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+        0,
+        0, nullptr,
+        0, nullptr,
+        1, &depthBarrier);
+
     VkRenderingAttachmentInfo colorAttachment{};
     colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
     colorAttachment.imageView = m_swapChain.GetSwapChainImageViews()[imageIndex];
@@ -139,12 +143,21 @@ void Renderer::Draw()
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     colorAttachment.clearValue = {{0.0f, 0.0f, 0.0f, 1.0f}};
 
+    VkRenderingAttachmentInfo depthAttachment{};
+    depthAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    depthAttachment.imageView = m_swapChain.GetDepthImageView();
+    depthAttachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachment.clearValue.depthStencil = {1.0f, 0};
+
     VkRenderingInfo renderingInfo{};
     renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
     renderingInfo.renderArea = {{0, 0}, m_swapChain.GetSwapChainExtent()};
     renderingInfo.layerCount = 1;
     renderingInfo.colorAttachmentCount = 1;
     renderingInfo.pColorAttachments = &colorAttachment;
+    renderingInfo.pDepthAttachment = &depthAttachment;
 
     vkCmdBeginRendering(cmd, &renderingInfo);
 
@@ -166,12 +179,9 @@ void Renderer::Draw()
 
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 0, 1, &m_descriptorManager.GetDescriptorSets()[imageIndex], 0, nullptr);
 
-    for (auto& obj : m_objects)
-    {
-        uint32_t dynamicOffset = obj.GetUBOSlot() * m_resourceManager.GetObjectUBOStride();
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 1, 1, m_descriptorManager.GetPerObjectDescriptorSets().data(), 1, &dynamicOffset);
-        obj.Draw(cmd, m_descriptorManager.GetPerObjectDescriptorSets()[0], m_resourceManager.GetObjectUBOStride());
-    }
+    uint32_t dynamicOffset = m_object.GetUBOSlot() * m_resourceManager.GetObjectUBOStride();
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 1, 1, m_descriptorManager.GetPerObjectDescriptorSets().data(), 1, &dynamicOffset);
+    m_object.Draw(cmd, m_descriptorManager.GetPerObjectDescriptorSets()[0], m_resourceManager.GetObjectUBOStride());
 
     vkCmdEndRendering(cmd);
 
@@ -263,10 +273,7 @@ void Renderer::Destroy()
     m_pipelineManager.Shutdown(&m_device);
     m_descriptorManager.Cleanup();
 
-    for (auto& obj : m_objects)
-    {
-        obj.Destroy();
-    }
+    m_object.Destroy();
 
     m_commandBufferManager.Shutdown();
     m_resourceManager.Cleanup();
