@@ -1,3 +1,8 @@
 .idea
-build
-bin
+.vscode
+.vs
+[Bb]uild
+[Bb]in
+[Ll]ib
+[Ll]ib64
+[Cc]ache
