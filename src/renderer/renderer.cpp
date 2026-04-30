@@ -47,6 +47,8 @@ void Renderer::Init(GLFWwindow *window)
     m_descriptorManager.CreateDescriptorSets();
     CreateSyncObjects();
     m_imagesInFlight.resize(m_swapChain.GetSwapChainImages().size(), VK_NULL_HANDLE);
+
+    m_input = Input(m_window);
 }
 
 void Renderer::Draw()
@@ -244,6 +246,12 @@ void Renderer::Draw()
     {
         throw std::runtime_error("failed to present swap chain image!");
     }
+
+    m_input.Update();
+    if (m_input.IsDown(KeyCode::T))
+        std::cout << "T" << std::endl;
+    if (m_input.IsMouseDown(MouseKeyCode::MouseLeft))
+        std::cout << "Mouse left" << std::endl;
 
     m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }

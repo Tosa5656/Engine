@@ -32,6 +32,8 @@
 #include <renderer/vulkan/material.h>
 #include <renderer/vulkan/camera.h>
 
+#include <utils/input/input.h>
+
 static bool is_glfw_initialized = false;
 
 static void InitGLFW()
@@ -96,6 +98,7 @@ private:
     Object m_object;
     Material m_material;
     Camera m_camera;
+    Input m_input = Input();
 
     float m_orbitYaw = 0.5f;
     float m_orbitPitch = 1.2f;
