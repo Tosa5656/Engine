@@ -1,4 +1,4 @@
-#include "Input.h"
+#include "input.h"
 
 Input::Input() : window(nullptr) {}
 
