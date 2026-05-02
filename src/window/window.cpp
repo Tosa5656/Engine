@@ -16,7 +16,7 @@ Window::Window(std::string title, int width, int height)
 
 Window::~Window()
 {
-    //Destroy later
+    m_renderer.Destroy();
 }
 
 void Window::Init()
