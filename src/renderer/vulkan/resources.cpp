@@ -88,23 +88,8 @@ void ResourceManager::CreateObjectBuffer(uint32_t maxObjects)
     CreateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, m_objectBuffer, m_objectAllocation);
 }
 
-void ResourceManager::UpdatePerFrameUBO(uint32_t currentImage, Camera& camera, const glm::vec3& orbitTarget, float orbitDistance, float orbitYaw, float orbitPitch)
+void ResourceManager::UpdatePerFrameUBO(uint32_t currentImage, Camera& camera)
 {
-    float cosPitch = glm::cos(orbitPitch);
-    float sinPitch = glm::sin(orbitPitch);
-    float cosYaw = glm::cos(orbitYaw);
-    float sinYaw = glm::sin(orbitYaw);
-
-    glm::vec3 direction(
-        cosPitch * sinYaw,
-        sinPitch,
-        cosPitch * cosYaw
-    );
-
-    glm::vec3 cameraPos = orbitTarget + direction * orbitDistance;
-    camera.SetPosition(cameraPos);
-    camera.SetTarget(orbitTarget);
-
     PerFrameUBO ubo{};
     ubo.view = camera.GetViewMatrix();
     ubo.proj = camera.GetProjectionMatrix();

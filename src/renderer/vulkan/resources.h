@@ -43,7 +43,7 @@ public:
     void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkBuffer& buffer, VmaAllocation& allocation);
     void CreateAllocator();
 
-    void UpdatePerFrameUBO(uint32_t currentImage, Camera& camera, const glm::vec3& orbitTarget, float orbitDistance, float orbitYaw, float orbitPitch);
+    void UpdatePerFrameUBO(uint32_t currentImage, Camera& camera);
     void UpdatePerObjectUBO(uint32_t slot, const PerObjectUBO& data);
     uint32_t AllocateObjectSlot();
 

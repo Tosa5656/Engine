@@ -21,6 +21,9 @@ public:
     void SetAspectRatio(float aspect);
     void SetNearFar(float near, float far);
 
+    void Move(glm::vec3 delta);
+    void Rotate(float yaw, float pitch);
+
     glm::vec3 GetPosition() const;
     glm::vec3 GetTarget() const;
     glm::vec3 GetUp() const;

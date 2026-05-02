@@ -40,7 +40,7 @@ void Renderer::Init(GLFWwindow *window)
     m_object.SetMaterial(&m_material);
     m_object.GetTransform()->SetPosition(glm::vec3(0.0f, 0.0f, 0.0f));
 
-    m_camera.SetPosition(glm::vec3(800.0f, 500.0f, 800.0f));
+    m_camera.SetPosition(glm::vec3(8.0f, 5.0f, 8.0f));
     m_camera.SetAspectRatio(m_swapChain.GetSwapChainExtent().width / (float)m_swapChain.GetSwapChainExtent().height);
 
     m_descriptorManager.CreateDescriptorPool();
@@ -86,8 +86,7 @@ void Renderer::Draw()
     }
     m_imagesInFlight[imageIndex] = m_inFlightFences[m_currentFrame];
 
-    m_orbitYaw += 0.001f;
-    m_resourceManager.UpdatePerFrameUBO(imageIndex, m_camera, glm::vec3(0.0f, 100.0f, 0.0f), m_orbitDistance, m_orbitYaw, m_orbitPitch);
+    m_resourceManager.UpdatePerFrameUBO(imageIndex, m_camera);
 
     m_object.UpdateUBO(&m_resourceManager);
 
@@ -282,17 +281,32 @@ void Renderer::Draw()
     }
 
     m_input.Update();
-    if (m_input.IsDown(KeyCode::T))
-        std::cout << "T" << std::endl;
-    if (m_input.IsMouseDown(MouseKeyCode::MouseLeft))
-        std::cout << "Mouse left" << std::endl;
+
+    float moveSpeed = 0.5f;
+    glm::vec3 forward = glm::normalize(m_camera.GetTarget() - m_camera.GetPosition());
+    glm::vec3 right = glm::normalize(glm::cross(forward, m_camera.GetUp()));
+
+    if (m_input.IsDown(KeyCode::W))
+        m_camera.Move(forward * moveSpeed);
+    if (m_input.IsDown(KeyCode::S))
+        m_camera.Move(-forward * moveSpeed);
+    if (m_input.IsDown(KeyCode::A))
+        m_camera.Move(-right * moveSpeed);
+    if (m_input.IsDown(KeyCode::D))
+        m_camera.Move(right * moveSpeed);
+
+    float rotateSpeed = 0.03f;
+    if (m_input.IsDown(KeyCode::E))
+        m_camera.Rotate(rotateSpeed, 0.0f);
+    if (m_input.IsDown(KeyCode::Q))
+        m_camera.Rotate(-rotateSpeed, 0.0f);
 
     m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 void Renderer::Destroy()
 {
-    vkDeviceWaitIdle(m_device.GetDevice());
+    //vkDeviceWaitIdle(m_device.GetDevice());
 
     for (auto& sem : m_imageAvailableSemaphores)
     {

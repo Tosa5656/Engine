@@ -52,6 +52,26 @@ void Camera::SetNearFar(float near, float far)
     m_dirty = true;
 }
 
+void Camera::Move(glm::vec3 delta)
+{
+    m_transform.SetPosition(m_transform.GetPosition() + delta);
+    m_target += delta;
+    m_dirty = true;
+}
+
+void Camera::Rotate(float yaw, float pitch)
+{
+    glm::vec3 forward = m_target - m_transform.GetPosition();
+    glm::vec3 right = glm::normalize(glm::cross(forward, m_up));
+
+    glm::mat4 rotation = glm::mat4(1.0f);
+    rotation = glm::rotate(rotation, yaw, m_up);
+    rotation = glm::rotate(rotation, pitch, right);
+    glm::vec3 newForward = glm::vec3(rotation * glm::vec4(forward, 0.0f));
+    m_target = m_transform.GetPosition() + newForward;
+    m_dirty = true;
+}
+
 glm::vec3 Camera::GetPosition() const
 {
     return m_transform.GetPosition();

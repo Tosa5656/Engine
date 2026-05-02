@@ -104,10 +104,6 @@ private:
     ComputePipeline m_computePipeline;
     bool m_computeResultPrinted = false;
 
-    float m_orbitYaw = 0.5f;
-    float m_orbitPitch = 1.2f;
-    float m_orbitDistance = 1500.0f;
-
     std::array<VkSemaphore, MAX_FRAMES_IN_FLIGHT> m_imageAvailableSemaphores;
     std::vector<VkSemaphore> m_renderFinishedSemaphores;
     std::array<VkFence, MAX_FRAMES_IN_FLIGHT> m_inFlightFences;
