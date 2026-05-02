@@ -24,11 +24,15 @@ public:
     void CreateDescriptorPool();
     void CreateDescriptorSets();
     void CreateDescriptorSetLayout();
+    void CreateComputeDescriptorSetLayout();
+    void CreateComputeDescriptorSet();
 
     VkDescriptorPool GetDescriptorPool();
     VkDescriptorSetLayout GetDescriptorSetLayout(uint32_t index);
     std::vector<VkDescriptorSet> GetDescriptorSets();
     std::vector<VkDescriptorSet> GetPerObjectDescriptorSets();
+    VkDescriptorSetLayout GetComputeDescriptorSetLayout();
+    VkDescriptorSet GetComputeDescriptorSet();
 
 private:
     Device* m_device;
@@ -40,4 +44,6 @@ private:
     std::vector<VkDescriptorSet> m_perObjectDescriptorSets;
     VkDescriptorSetLayout m_perFrameSetLayout;
     VkDescriptorSetLayout m_perObjectSetLayout;
+    VkDescriptorSetLayout m_computeSetLayout;
+    VkDescriptorSet m_computeDescriptorSet;
 };

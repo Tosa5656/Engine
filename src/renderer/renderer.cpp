@@ -45,6 +45,12 @@ void Renderer::Init(GLFWwindow *window)
 
     m_descriptorManager.CreateDescriptorPool();
     m_descriptorManager.CreateDescriptorSets();
+
+    m_resourceManager.CreateComputeResultBuffer();
+    m_descriptorManager.CreateComputeDescriptorSetLayout();
+    m_computePipeline.Create(&m_device, "shaders/compute.spv", m_descriptorManager.GetComputeDescriptorSetLayout());
+    m_descriptorManager.CreateComputeDescriptorSet();
+
     CreateSyncObjects();
     m_imagesInFlight.resize(m_swapChain.GetSwapChainImages().size(), VK_NULL_HANDLE);
 
@@ -187,6 +193,32 @@ void Renderer::Draw()
 
     vkCmdEndRendering(cmd);
 
+    VkDescriptorSet computeDescriptorSet = m_descriptorManager.GetComputeDescriptorSet();
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipeline.GetPipeline());
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipeline.GetPipelineLayout(), 0, 1, &computeDescriptorSet, 0, nullptr);
+    vkCmdDispatch(cmd, 1, 1, 1);
+
+    VkBufferCopy copyRegion{};
+    copyRegion.srcOffset = 0;
+    copyRegion.dstOffset = 0;
+    copyRegion.size = sizeof(float);
+    vkCmdCopyBuffer(cmd, m_resourceManager.GetComputeResultBuffer(), m_resourceManager.GetComputeStagingBuffer(), 1, &copyRegion);
+
+    VkMemoryBarrier memoryBarrier{};
+    memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+    memoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    memoryBarrier.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0, 1, &memoryBarrier, 0, nullptr, 0, nullptr);
+
+    if (!m_computeResultPrinted)
+    {
+        float result = 0.0f;
+        m_resourceManager.ReadComputeResult(result);
+
+        std::cout << "Compute result (Pi): " << result << std::endl;
+        m_computeResultPrinted = true;
+    }
+
     barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
     barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
@@ -280,6 +312,7 @@ void Renderer::Destroy()
     m_swapChain.Cleanup(&m_device);
     m_pipelineManager.Shutdown(&m_device);
     m_descriptorManager.Cleanup();
+    m_computePipeline.Shutdown(&m_device);
 
     m_object.Destroy();
 

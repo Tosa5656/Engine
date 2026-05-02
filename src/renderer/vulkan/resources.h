@@ -56,6 +56,13 @@ public:
     uint32_t GetObjectUBOStride() const { return m_objectUBOStride; }
     VmaAllocator GetAllocator();
 
+    void CreateComputeResultBuffer();
+    VkBuffer GetComputeResultBuffer() const { return m_computeResultBuffer; }
+    VmaAllocation GetComputeResultBufferAllocation() const { return m_computeResultAllocation; }
+    VkBuffer GetComputeStagingBuffer() const { return m_computeStagingBuffer; }
+    VmaAllocation GetComputeStagingBufferAllocation() const { return m_computeStagingAllocation; }
+    void ReadComputeResult(float& outResult);
+
 private:
     Device* m_device;
     SwapChain* m_swapChain;
@@ -69,4 +76,9 @@ private:
     uint32_t m_objectCount = 0;
     std::vector<uint32_t> m_freeSlots;
     VmaAllocator m_allocator = VK_NULL_HANDLE;
+
+    VkBuffer m_computeResultBuffer = VK_NULL_HANDLE;
+    VmaAllocation m_computeResultAllocation = VK_NULL_HANDLE;
+    VkBuffer m_computeStagingBuffer = VK_NULL_HANDLE;
+    VmaAllocation m_computeStagingAllocation = VK_NULL_HANDLE;
 };

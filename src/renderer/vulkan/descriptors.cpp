@@ -30,21 +30,29 @@ void DescriptorsManager::Cleanup()
         vkDestroyDescriptorSetLayout(m_device->GetDevice(), m_perObjectSetLayout, nullptr);
         m_perObjectSetLayout = VK_NULL_HANDLE;
     }
+
+    if (m_computeSetLayout != VK_NULL_HANDLE)
+    {
+        vkDestroyDescriptorSetLayout(m_device->GetDevice(), m_computeSetLayout, nullptr);
+        m_computeSetLayout = VK_NULL_HANDLE;
+    }
 }
 
 void DescriptorsManager::CreateDescriptorPool()
 {
-    std::vector<VkDescriptorPoolSize> poolSizes(2);
+    std::vector<VkDescriptorPoolSize> poolSizes(3);
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSizes[0].descriptorCount = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size());
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
     poolSizes[1].descriptorCount = 256;
+    poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    poolSizes[2].descriptorCount = 1;
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
     poolInfo.pPoolSizes = poolSizes.data();
-    poolInfo.maxSets = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size()) + 1;
+    poolInfo.maxSets = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size()) + 2;
 
     if (vkCreateDescriptorPool(m_device->GetDevice(), &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS)
     {
@@ -176,4 +184,61 @@ std::vector<VkDescriptorSet> DescriptorsManager::GetDescriptorSets()
 std::vector<VkDescriptorSet> DescriptorsManager::GetPerObjectDescriptorSets()
 {
     return m_perObjectDescriptorSets;
+}
+
+void DescriptorsManager::CreateComputeDescriptorSetLayout()
+{
+    VkDescriptorSetLayoutBinding computeBinding{};
+    computeBinding.binding = 0;
+    computeBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    computeBinding.descriptorCount = 1;
+    computeBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+    VkDescriptorSetLayoutCreateInfo computeLayoutInfo{};
+    computeLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    computeLayoutInfo.bindingCount = 1;
+    computeLayoutInfo.pBindings = &computeBinding;
+
+    if (vkCreateDescriptorSetLayout(m_device->GetDevice(), &computeLayoutInfo, nullptr, &m_computeSetLayout) != VK_SUCCESS)
+        throw std::runtime_error("failed to create compute descriptor set layout!");
+}
+
+void DescriptorsManager::CreateComputeDescriptorSet()
+{
+    VkDescriptorSetLayout layout = m_computeSetLayout;
+
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = m_descriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = &layout;
+
+    if (vkAllocateDescriptorSets(m_device->GetDevice(), &allocInfo, &m_computeDescriptorSet) != VK_SUCCESS)
+        throw std::runtime_error("failed to allocate compute descriptor set!");
+
+    // Use GPU buffer for compute
+    VkDescriptorBufferInfo bufferInfo{};
+    bufferInfo.buffer = m_resourceManager->GetComputeResultBuffer();
+    bufferInfo.offset = 0;
+    bufferInfo.range = sizeof(float);
+
+    VkWriteDescriptorSet descriptorWrite{};
+    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrite.dstSet = m_computeDescriptorSet;
+    descriptorWrite.dstBinding = 0;
+    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    descriptorWrite.descriptorCount = 1;
+    descriptorWrite.pBufferInfo = &bufferInfo;
+
+    vkUpdateDescriptorSets(m_device->GetDevice(), 1, &descriptorWrite, 0, nullptr);
+}
+
+VkDescriptorSetLayout DescriptorsManager::GetComputeDescriptorSetLayout()
+{
+    return m_computeSetLayout;
+}
+
+VkDescriptorSet DescriptorsManager::GetComputeDescriptorSet()
+{
+    return m_computeDescriptorSet;
 }

@@ -31,6 +31,7 @@
 #include <renderer/vulkan/object.h>
 #include <renderer/vulkan/material.h>
 #include <renderer/vulkan/camera.h>
+#include <renderer/vulkan/computepipeline.h>
 
 #include <utils/input/input.h>
 
@@ -99,6 +100,9 @@ private:
     Material m_material;
     Camera m_camera;
     Input m_input = Input();
+
+    ComputePipeline m_computePipeline;
+    bool m_computeResultPrinted = false;
 
     float m_orbitYaw = 0.5f;
     float m_orbitPitch = 1.2f;

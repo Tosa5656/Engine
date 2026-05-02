@@ -27,6 +27,18 @@ void ResourceManager::Cleanup()
         vmaDestroyBuffer(m_allocator, m_objectBuffer, m_objectAllocation);
         m_objectBuffer = VK_NULL_HANDLE;
     }
+
+    if (m_computeResultBuffer != VK_NULL_HANDLE)
+    {
+        vmaDestroyBuffer(m_allocator, m_computeResultBuffer, m_computeResultAllocation);
+        m_computeResultBuffer = VK_NULL_HANDLE;
+    }
+
+    if (m_computeStagingBuffer != VK_NULL_HANDLE)
+    {
+        vmaDestroyBuffer(m_allocator, m_computeStagingBuffer, m_computeStagingAllocation);
+        m_computeStagingBuffer = VK_NULL_HANDLE;
+    }
 }
 
 void ResourceManager::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkBuffer& buffer, VmaAllocation& allocation)
@@ -153,4 +165,29 @@ VmaAllocator ResourceManager::GetAllocator()
 
 VkDevice ResourceManager::GetVkDevice() {
     return m_device->GetDevice();
+}
+
+void ResourceManager::CreateComputeResultBuffer()
+{
+    VkDeviceSize bufferSize = sizeof(float);
+
+    CreateBuffer(bufferSize,
+                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                 VMA_MEMORY_USAGE_GPU_ONLY,
+                 m_computeResultBuffer,
+                 m_computeResultAllocation);
+
+    CreateBuffer(bufferSize,
+                 VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                 VMA_MEMORY_USAGE_CPU_ONLY,
+                 m_computeStagingBuffer,
+                 m_computeStagingAllocation);
+}
+
+void ResourceManager::ReadComputeResult(float& outResult)
+{
+    void* data;
+    vmaMapMemory(m_allocator, m_computeStagingAllocation, &data);
+    memcpy(&outResult, data, sizeof(float));
+    vmaUnmapMemory(m_allocator, m_computeStagingAllocation);
 }
