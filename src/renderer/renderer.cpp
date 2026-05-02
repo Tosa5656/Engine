@@ -36,7 +36,7 @@ void Renderer::Init(GLFWwindow *window)
     m_resourceManager.CreateObjectBuffer(1);
 
     m_material = Material(glm::vec3(1.0f, 1.0f, 1.0f), 1.0f, 1.0f);
-    m_object.Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), &m_resourceManager, "models/cat.obj");
+    m_object.Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), &m_resourceManager, "models/All.obj");
     m_object.SetMaterial(&m_material);
     m_object.GetTransform()->SetPosition(glm::vec3(0.0f, 0.0f, 0.0f));
 
