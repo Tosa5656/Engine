@@ -1,4 +1,4 @@
-#version 450
+#version 460
 
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 
@@ -9,5 +9,5 @@ layout(set = 0, binding = 0) buffer ComputeResult
 
 void main()
 {
-    outData.result = 2;
+    outData.result = 3.14159206;
 }

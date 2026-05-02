@@ -210,15 +210,6 @@ void Renderer::Draw()
     memoryBarrier.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
     vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0, 1, &memoryBarrier, 0, nullptr, 0, nullptr);
 
-    if (!m_computeResultPrinted)
-    {
-        float result = 0.0f;
-        m_resourceManager.ReadComputeResult(result);
-
-        std::cout << "Compute result (Pi): " << result << std::endl;
-        m_computeResultPrinted = true;
-    }
-
     barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
     barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
@@ -255,6 +246,17 @@ void Renderer::Draw()
 
     if (vkQueueSubmit(m_device.GetGraphicsQueue(), 1, &submitInfo, m_inFlightFences[m_currentFrame]) != VK_SUCCESS)
         throw std::runtime_error("failed to submit draw command buffer!");
+
+    vkWaitForFences(m_device.GetDevice(), 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
+
+    if (!m_computeResultPrinted)
+    {
+        float result = 0.0f;
+        m_resourceManager.ReadComputeResult(result);
+
+        std::cout << "Compute result (Pi): " << result << std::endl;
+        m_computeResultPrinted = true;
+    }
 
     VkSwapchainKHR swapChain = m_swapChain.GetSwapChain();
 
