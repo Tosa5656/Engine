@@ -59,6 +59,8 @@ void Renderer::Init(GLFWwindow *window)
 
 void Renderer::Draw()
 {
+    m_input.Update();
+
     vkWaitForFences(m_device.GetDevice(), 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
 
     uint32_t imageIndex;
@@ -280,26 +282,28 @@ void Renderer::Draw()
         throw std::runtime_error("failed to present swap chain image!");
     }
 
-    m_input.Update();
-
-    float moveSpeed = 0.5f;
+    float moveSpeed = 0.002f;
     glm::vec3 forward = glm::normalize(m_camera.GetTarget() - m_camera.GetPosition());
     glm::vec3 right = glm::normalize(glm::cross(forward, m_camera.GetUp()));
 
-    if (m_input.IsDown(KeyCode::W))
+    if (m_input.IsPressed(KeyCode::W))
         m_camera.Move(forward * moveSpeed);
-    if (m_input.IsDown(KeyCode::S))
+    if (m_input.IsPressed(KeyCode::S))
         m_camera.Move(-forward * moveSpeed);
-    if (m_input.IsDown(KeyCode::A))
+    if (m_input.IsPressed(KeyCode::A))
         m_camera.Move(-right * moveSpeed);
-    if (m_input.IsDown(KeyCode::D))
+    if (m_input.IsPressed(KeyCode::D))
         m_camera.Move(right * moveSpeed);
 
-    float rotateSpeed = 0.03f;
-    if (m_input.IsDown(KeyCode::E))
+    float rotateSpeed = 0.0004f;
+    if (m_input.IsPressed(KeyCode::Left))
         m_camera.Rotate(rotateSpeed, 0.0f);
-    if (m_input.IsDown(KeyCode::Q))
+    if (m_input.IsPressed(KeyCode::Right))
         m_camera.Rotate(-rotateSpeed, 0.0f);
+    if (m_input.IsPressed(KeyCode::Up))
+        m_camera.Rotate(0.0f, rotateSpeed);
+    if (m_input.IsPressed(KeyCode::Down))
+        m_camera.Rotate(0.0f, -rotateSpeed);
 
     m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
