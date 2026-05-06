@@ -89,8 +89,6 @@ void SwapChain::Recreate(Device* device, GLFWwindow* window, Surface* surface, C
 
     m_swapChainImageViews.clear();
     CreateImageViews(device);
-
-    CreateDepthResources(device, allocator);
 }
 
 void SwapChain::Cleanup(Device* device)

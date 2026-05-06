@@ -336,6 +336,7 @@ void Renderer::Destroy()
     }
 
     m_object.Destroy();
+    m_mesh.Destroy();
 
     m_commandBufferManager.Shutdown();
 
