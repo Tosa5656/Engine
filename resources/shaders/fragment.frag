@@ -26,5 +26,5 @@ void main()
     vec3 specular = vec3(1.0) * spec * (1.0 - fragRoughness) * (1.0 - fragMetallic);
     vec3 metallicReflect = fragAlbedo * fragMetallic * fresnel;
 
-    outColor = vec4(ambient + diffuse + specular + metallicReflect, 1.0);
+    outColor = vec4(ambient + diffuse + metallicReflect, 1.0);
 }
