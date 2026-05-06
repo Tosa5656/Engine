@@ -91,6 +91,9 @@ void Mesh::Draw(VkCommandBuffer commandBuffer)
 
 void Mesh::Destroy()
 {
+    if (m_allocator == VK_NULL_HANDLE)
+        return;
+
     if (m_vertexBuffer != VK_NULL_HANDLE && m_vertexBufferAllocation != VK_NULL_HANDLE)
     {
         vmaDestroyBuffer(m_allocator, m_vertexBuffer, m_vertexBufferAllocation);

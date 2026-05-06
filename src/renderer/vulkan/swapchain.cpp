@@ -3,10 +3,11 @@
 SwapChain::SwapChain() = default;
 SwapChain::~SwapChain() = default;
 
-void SwapChain::Create(Device* device, GLFWwindow* window, Surface* surface)
+void SwapChain::Create(Device* device, GLFWwindow* window, Surface* surface, VmaAllocator allocator)
 {
     m_device = device;
     m_surface = surface;
+    m_allocator = allocator;
 
     auto swapChainSupport = surface->QuerySwapChainSupport(device->GetPhysicalDevice());
 
@@ -63,12 +64,13 @@ void SwapChain::Create(Device* device, GLFWwindow* window, Surface* surface)
     m_swapChainImageFormat = surfaceFormat.format;
     m_swapChainExtent = extent;
 
-    CreateDepthResources(device);
+    CreateDepthResources(device, m_allocator);
 }
 
-void SwapChain::Recreate(Device* device, GLFWwindow* window, Surface* surface, CommandBufferManager* cmdManager)
+void SwapChain::Recreate(Device* device, GLFWwindow* window, Surface* surface, CommandBufferManager* cmdManager, VmaAllocator allocator)
 {
     m_surface = surface;
+    m_allocator = allocator;
 
     int width = 0, height = 0;
     glfwGetFramebufferSize(window, &width, &height);
@@ -83,33 +85,38 @@ void SwapChain::Recreate(Device* device, GLFWwindow* window, Surface* surface, C
     Cleanup(device);
 
     cmdManager->Recreate(device->GetGraphicsQueueFamilyIndex(m_surface));
-    Create(device, window, surface);
+    Create(device, window, surface, allocator);
 
     m_swapChainImageViews.clear();
     CreateImageViews(device);
 
-    CreateDepthResources(device);
+    CreateDepthResources(device, allocator);
 }
 
 void SwapChain::Cleanup(Device* device)
 {
-    vkDeviceWaitIdle(device->GetDevice());
+    if (!device)
+        return;
+
+    VkDevice vkDevice = device->GetDevice();
+    if (vkDevice == VK_NULL_HANDLE)
+        return;
+
+    vkDeviceWaitIdle(vkDevice);
 
     for (auto view : m_swapChainImageViews)
-        vkDestroyImageView(device->GetDevice(), view, nullptr);
+        vkDestroyImageView(vkDevice, view, nullptr);
 
     if (m_depthImageView != VK_NULL_HANDLE)
-        vkDestroyImageView(device->GetDevice(), m_depthImageView, nullptr);
-    if (m_depthImage != VK_NULL_HANDLE)
-        vkDestroyImage(device->GetDevice(), m_depthImage, nullptr);
-    if (m_depthImageMemory != VK_NULL_HANDLE)
-        vkFreeMemory(device->GetDevice(), m_depthImageMemory, nullptr);
+        vkDestroyImageView(vkDevice, m_depthImageView, nullptr);
+    if (m_depthImage != VK_NULL_HANDLE && m_depthImageAllocation != VK_NULL_HANDLE)
+        vmaDestroyImage(m_allocator, m_depthImage, m_depthImageAllocation);
 
     m_swapChainImageViews.clear();
 
     if (m_swapChain != VK_NULL_HANDLE)
     {
-        vkDestroySwapchainKHR(device->GetDevice(), m_swapChain, nullptr);
+        vkDestroySwapchainKHR(vkDevice, m_swapChain, nullptr);
         m_swapChain = VK_NULL_HANDLE;
     }
 
@@ -167,7 +174,7 @@ std::vector<VkImageView> SwapChain::GetSwapChainImageViews()
     return m_swapChainImageViews;
 }
 
-void SwapChain::CreateDepthResources(Device* device)
+void SwapChain::CreateDepthResources(Device* device, VmaAllocator allocator)
 {
     m_depthFormat = VK_FORMAT_D32_SFLOAT;
 
@@ -186,21 +193,11 @@ void SwapChain::CreateDepthResources(Device* device)
     imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    if (vkCreateImage(device->GetDevice(), &imageInfo, nullptr, &m_depthImage) != VK_SUCCESS)
+    VmaAllocationCreateInfo allocInfo{};
+    allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+    if (vmaCreateImage(allocator, &imageInfo, &allocInfo, &m_depthImage, &m_depthImageAllocation, nullptr) != VK_SUCCESS)
         throw std::runtime_error("failed to create depth image!");
-
-    VkMemoryRequirements memRequirements;
-    vkGetImageMemoryRequirements(device->GetDevice(), m_depthImage, &memRequirements);
-
-    VkMemoryAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = FindMemoryType(device, memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-    if (vkAllocateMemory(device->GetDevice(), &allocInfo, nullptr, &m_depthImageMemory) != VK_SUCCESS)
-        throw std::runtime_error("failed to allocate depth image memory!");
-
-    vkBindImageMemory(device->GetDevice(), m_depthImage, m_depthImageMemory, 0);
 
     VkImageViewCreateInfo viewInfo{};
     viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -215,20 +212,6 @@ void SwapChain::CreateDepthResources(Device* device)
 
     if (vkCreateImageView(device->GetDevice(), &viewInfo, nullptr, &m_depthImageView) != VK_SUCCESS)
         throw std::runtime_error("failed to create depth image view!");
-}
-
-uint32_t SwapChain::FindMemoryType(Device* device, uint32_t typeFilter, VkMemoryPropertyFlags properties)
-{
-    VkPhysicalDeviceMemoryProperties memProperties;
-    vkGetPhysicalDeviceMemoryProperties(device->GetPhysicalDevice(), &memProperties);
-
-    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++)
-    {
-        if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
-            return i;
-    }
-
-    throw std::runtime_error("failed to find suitable memory type!");
 }
 
 VkImageView SwapChain::GetDepthImageView()

@@ -26,7 +26,7 @@ void Renderer::Init(GLFWwindow *window)
     m_device.Create(&m_instance, &m_surface);
     m_resourceManager.Create(&m_device, &m_swapChain, &m_instance);
     m_resourceManager.CreateAllocator();
-    m_swapChain.Create(&m_device, m_window, &m_surface);
+    m_swapChain.Create(&m_device, m_window, &m_surface, m_resourceManager.GetAllocator());
     m_swapChain.CreateImageViews(&m_device);
     m_descriptorManager.Init(&m_device, &m_swapChain, &m_resourceManager, 256);
     m_descriptorManager.CreateDescriptorSetLayout();
@@ -74,7 +74,7 @@ void Renderer::Draw()
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR)
     {
-        m_swapChain.Recreate(&m_device, m_window, &m_surface, &m_commandBufferManager);
+        m_swapChain.Recreate(&m_device, m_window, &m_surface, &m_commandBufferManager, m_resourceManager.GetAllocator());
         return;
     }
     else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
@@ -274,7 +274,7 @@ void Renderer::Draw()
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_framebufferResized)
     {
         m_framebufferResized = false;
-        m_swapChain.Recreate(&m_device, m_window, &m_surface, &m_commandBufferManager);
+        m_swapChain.Recreate(&m_device, m_window, &m_surface, &m_commandBufferManager, m_resourceManager.GetAllocator());
         return;
     }
     else if (result != VK_SUCCESS)
@@ -310,47 +310,57 @@ void Renderer::Draw()
 
 void Renderer::Destroy()
 {
-    //vkDeviceWaitIdle(m_device.GetDevice());
+    static bool alreadyDestroyed = false;
+    if (alreadyDestroyed)
+        return;
+    alreadyDestroyed = true;
+
+    VkDevice device = m_device.GetDevice();
+    VkInstance instance = m_instance.GetInstance();
 
     for (auto& sem : m_imageAvailableSemaphores)
     {
-        if (sem != VK_NULL_HANDLE)
-            vkDestroySemaphore(m_device.GetDevice(), sem, nullptr);
+        if (device != VK_NULL_HANDLE && sem != VK_NULL_HANDLE)
+            vkDestroySemaphore(device, sem, nullptr);
     }
     for (auto& sem : m_renderFinishedSemaphores)
     {
-        if (sem != VK_NULL_HANDLE)
-            vkDestroySemaphore(m_device.GetDevice(), sem, nullptr);
+        if (device != VK_NULL_HANDLE && sem != VK_NULL_HANDLE)
+            vkDestroySemaphore(device, sem, nullptr);
     }
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
     {
-        if (m_inFlightFences[i] != VK_NULL_HANDLE)
-            vkDestroyFence(m_device.GetDevice(), m_inFlightFences[i], nullptr);
+        if (device != VK_NULL_HANDLE && m_inFlightFences[i] != VK_NULL_HANDLE)
+            vkDestroyFence(device, m_inFlightFences[i], nullptr);
     }
-
-    m_swapChain.Cleanup(&m_device);
-    m_pipelineManager.Shutdown(&m_device);
-    m_descriptorManager.Cleanup();
-    m_computePipeline.Shutdown(&m_device);
 
     m_object.Destroy();
 
     m_commandBufferManager.Shutdown();
+
     m_resourceManager.Cleanup();
 
-    if (m_resourceManager.GetAllocator() != VK_NULL_HANDLE)
+    m_computePipeline.Shutdown(&m_device);
+    m_descriptorManager.Cleanup();
+    m_pipelineManager.Shutdown(&m_device);
+    m_swapChain.Cleanup(&m_device);
+
+    VmaAllocator allocator = m_resourceManager.GetAllocator();
+    if (allocator != VK_NULL_HANDLE)
+        vmaDestroyAllocator(allocator);
+
+    if (device != VK_NULL_HANDLE)
+        vkDestroyDevice(device, nullptr);
+
+    if (instance != VK_NULL_HANDLE)
     {
-        vmaDestroyAllocator(m_resourceManager.GetAllocator());
+        if (m_instance.IsExtensionValidationEnabled())
+            m_instance.DestroyDebugUtilsMessengerEXT(instance, m_instance.GetDebugMessenger(), nullptr);
+
+        m_surface.Cleanup(&m_instance);
+        vkDestroyInstance(instance, nullptr);
     }
-
-    vkDestroyDevice(m_device.GetDevice(), nullptr);
-
-    if (m_instance.IsExtensionValidationEnabled())
-        m_instance.DestroyDebugUtilsMessengerEXT(m_instance.GetInstance(), m_instance.GetDebugMessenger(), nullptr);
-
-    m_surface.Cleanup(&m_instance);
-    vkDestroyInstance(m_instance.GetInstance(), nullptr);
 }
 
 void Renderer::SetFramebufferResized(bool resized)

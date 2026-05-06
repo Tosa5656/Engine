@@ -13,27 +13,34 @@ void DescriptorsManager::Init(Device* device, SwapChain* swapChain, ResourceMana
 
 void DescriptorsManager::Cleanup()
 {
+    if (!m_device)
+        return;
+
+    VkDevice device = m_device->GetDevice();
+    if (device == VK_NULL_HANDLE)
+        return;
+
     if (m_descriptorPool != VK_NULL_HANDLE)
     {
-        vkDestroyDescriptorPool(m_device->GetDevice(), m_descriptorPool, nullptr);
+        vkDestroyDescriptorPool(device, m_descriptorPool, nullptr);
         m_descriptorPool = VK_NULL_HANDLE;
     }
 
     if (m_perFrameSetLayout != VK_NULL_HANDLE)
     {
-        vkDestroyDescriptorSetLayout(m_device->GetDevice(), m_perFrameSetLayout, nullptr);
+        vkDestroyDescriptorSetLayout(device, m_perFrameSetLayout, nullptr);
         m_perFrameSetLayout = VK_NULL_HANDLE;
     }
 
     if (m_perObjectSetLayout != VK_NULL_HANDLE)
     {
-        vkDestroyDescriptorSetLayout(m_device->GetDevice(), m_perObjectSetLayout, nullptr);
+        vkDestroyDescriptorSetLayout(device, m_perObjectSetLayout, nullptr);
         m_perObjectSetLayout = VK_NULL_HANDLE;
     }
 
     if (m_computeSetLayout != VK_NULL_HANDLE)
     {
-        vkDestroyDescriptorSetLayout(m_device->GetDevice(), m_computeSetLayout, nullptr);
+        vkDestroyDescriptorSetLayout(device, m_computeSetLayout, nullptr);
         m_computeSetLayout = VK_NULL_HANDLE;
     }
 }

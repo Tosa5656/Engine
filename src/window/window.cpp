@@ -44,7 +44,9 @@ void Window::Init()
         m_renderer.Draw();
     }
 
-    vkDeviceWaitIdle(m_renderer.GetDevice());
+    VkDevice device = m_renderer.GetDevice();
+    if (device != VK_NULL_HANDLE)
+        vkDeviceWaitIdle(device);
 }
 
 void Window::FramebufferResizeCallback(GLFWwindow *window, int width, int height)

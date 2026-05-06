@@ -16,8 +16,8 @@ public:
     SwapChain();
     ~SwapChain();
 
-    void Create(Device* device, GLFWwindow* window, Surface* surface);
-    void Recreate(Device* device, GLFWwindow* window, Surface* surface, CommandBufferManager* cmdManager);
+    void Create(Device* device, GLFWwindow* window, Surface* surface, VmaAllocator allocator);
+    void Recreate(Device* device, GLFWwindow* window, Surface* surface, CommandBufferManager* cmdManager, VmaAllocator allocator);
     void Cleanup(Device* device);
 
     void CreateImageViews(Device* device);
@@ -33,6 +33,7 @@ public:
 
 private:
     Device* m_device = nullptr;
+    VmaAllocator m_allocator = VK_NULL_HANDLE;
 
     VkSwapchainKHR m_swapChain = VK_NULL_HANDLE;
     Surface* m_surface;
@@ -42,10 +43,9 @@ private:
     std::vector<VkImageView> m_swapChainImageViews;
 
     VkImage m_depthImage = VK_NULL_HANDLE;
-    VkDeviceMemory m_depthImageMemory = VK_NULL_HANDLE;
+    VmaAllocation m_depthImageAllocation = VK_NULL_HANDLE;
     VkImageView m_depthImageView = VK_NULL_HANDLE;
     VkFormat m_depthFormat = VK_FORMAT_D32_SFLOAT;
 
-    void CreateDepthResources(Device* device);
-    uint32_t FindMemoryType(Device* device, uint32_t typeFilter, VkMemoryPropertyFlags properties);
+    void CreateDepthResources(Device* device, VmaAllocator allocator);
 };

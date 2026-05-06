@@ -14,6 +14,9 @@ void ResourceManager::Create(Device* device, SwapChain* swapChain, Instance* ins
 
 void ResourceManager::Cleanup()
 {
+    if (m_allocator == VK_NULL_HANDLE)
+        return;
+
     for (size_t i = 0; i < m_perFrameBuffers.size(); i++)
     {
         if (m_perFrameBuffers[i] != VK_NULL_HANDLE)
