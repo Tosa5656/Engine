@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 4.0)
 
-set(PROJECT_NAME Engine)
+set(PROJECT_NAME Singularity)
 project(${PROJECT_NAME}
         VERSION 0.1.0
-        DESCRIPTION "Engine"
+        DESCRIPTION "Singularity Game Engine"
         LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
