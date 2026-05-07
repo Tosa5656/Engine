@@ -23,7 +23,8 @@ void Object::Init(Device* device, CommandBufferManager* cmdManager, VmaAllocator
 
 void Object::Draw(VkCommandBuffer commandBuffer, VkDescriptorSet perObjectDescriptorSet, uint32_t objectStride)
 {
-    m_mesh.Draw(commandBuffer);
+    if (m_active)
+        m_mesh.Draw(commandBuffer);
 }
 
 void Object::Destroy()
@@ -72,4 +73,9 @@ void Object::UpdateUBO(ResourceManager* resourceManager)
         uboData.normalStrength = 1.0f;
         resourceManager->UpdatePerObjectUBO(m_uboSlot, uboData);
     }
+}
+
+void Object::SetActive(bool active)
+{
+    m_active = active;
 }

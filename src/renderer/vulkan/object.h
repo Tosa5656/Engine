@@ -28,10 +28,12 @@ public:
     Transform* GetTransform();
     uint32_t GetUBOSlot() const { return m_uboSlot; }
     Material* GetMaterial() { return m_material; }
+    bool IsActive() { return m_active; }
 
     void SetDeviceAndAllocator(Device* device, CommandBufferManager* cmdManager, VmaAllocator allocator);
     void SetMaterial(Material* material);
     void UpdateUBO(ResourceManager* resourceManager);
+    void SetActive(bool active);
 
 private:
     Device* m_device = nullptr;
@@ -43,4 +45,5 @@ private:
 
     Mesh m_mesh;
     Transform m_transform = Transform(glm::vec3(0, 0, 0), glm::vec3(0, 0, 0), glm::vec3(1, 1, 1));
+    bool m_active = true;
 };

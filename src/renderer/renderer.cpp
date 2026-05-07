@@ -326,6 +326,9 @@ void Renderer::Render()
         m_camera.Rotate(-mouseDelta.x * rotateSpeed, -mouseDelta.y * rotateSpeed);
     }
 
+    if (m_input->IsDown(KeyCode::G))
+        m_object.SetActive(!m_object.IsActive());
+
     m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
