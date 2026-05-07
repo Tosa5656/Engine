@@ -3,7 +3,7 @@
 
 int main()
 {
-    Window window = Window("Singularity Engine", 800, 600);
+    Window window = Window("Singularity Engine", 1280, 720);
 
     while (window.ShouldActive())
     {

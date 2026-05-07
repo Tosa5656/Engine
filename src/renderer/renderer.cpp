@@ -34,15 +34,34 @@ void Renderer::Init(GLFWwindow *window, Input* input)
     m_pipelineManager.Create(&m_device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetDescriptorSetLayout(1));
     m_commandBufferManager.Init(m_device.GetDevice(), m_device.GetGraphicsQueueFamilyIndex(&m_surface));
     m_resourceManager.CreateUniformBuffers();
-    m_resourceManager.CreateObjectBuffer(1);
+    m_resourceManager.CreateObjectBuffer(4);
 
-    m_material = Material(glm::vec3(1.0f, 1.0f, 1.0f), 1.0f, 1.0f);
-    m_object.Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), &m_resourceManager, "models/cube.obj");
-    m_object.SetMaterial(&m_material);
-    m_object.GetTransform()->SetPosition(glm::vec3(0.0f, 0.0f, 0.0f));
+    m_material = Material(glm::vec3(1.0f, 0.0f, 0.0f), 1.0f, 1.0f);
+    m_material2 = Material(glm::vec3(0.0f, 1.0f, 0.0f), 1.0f, 1.0f);
+    m_material3 = Material(glm::vec3(0.0f, 0.0f, 1.0f), 1.0f, 1.0f);
 
-    m_camera.SetPosition(glm::vec3(8.0f, 5.0f, 8.0f));
-    m_camera.SetAspectRatio(m_swapChain.GetSwapChainExtent().width / (float)m_swapChain.GetSwapChainExtent().height);
+    m_scene.Init();
+
+    Object* obj1 = new Object();
+    obj1->Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), &m_resourceManager, "models/cube.obj");
+    obj1->SetMaterial(&m_material);
+    obj1->GetTransform()->SetPosition(glm::vec3(0.0f, 0.0f, 0.0f));
+    m_scene.AddObject(obj1);
+
+    Object* obj2 = new Object();
+    obj2->Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), &m_resourceManager, "models/cube.obj");
+    obj2->SetMaterial(&m_material2);
+    obj2->GetTransform()->SetPosition(glm::vec3(3.0f, 0.0f, 0.0f));
+    m_scene.AddObject(obj2);
+
+    Object* obj3 = new Object();
+    obj3->Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), &m_resourceManager, "models/cube.obj");
+    obj3->SetMaterial(&m_material3);
+    obj3->GetTransform()->SetPosition(glm::vec3(-3.0f, 0.0f, 0.0f));
+    m_scene.AddObject(obj3);
+
+    m_scene.GetCamera()->SetPosition(glm::vec3(8.0f, 5.0f, 8.0f));
+    m_scene.GetCamera()->SetAspectRatio(m_swapChain.GetSwapChainExtent().width / (float)m_swapChain.GetSwapChainExtent().height);
 
     m_descriptorManager.CreateDescriptorPool();
     m_descriptorManager.CreateDescriptorSets();
@@ -87,9 +106,15 @@ void Renderer::Render()
     }
     m_imagesInFlight[imageIndex] = m_inFlightFences[m_currentFrame];
 
-    m_resourceManager.UpdatePerFrameUBO(imageIndex, m_camera);
+    m_resourceManager.UpdatePerFrameUBO(imageIndex, *m_scene.GetCamera());
 
-    m_object.UpdateUBO(&m_resourceManager);
+    for (Object* obj : m_scene.GetObjects())
+    {
+        if (obj && obj->IsActive())
+        {
+            obj->UpdateUBO(&m_resourceManager);
+        }
+    }
 
     VkCommandBuffer cmd = m_commandBufferManager.GetCommandBuffer(m_currentFrame);
     vkResetCommandBuffer(cmd, 0);
@@ -190,9 +215,15 @@ void Renderer::Render()
 
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 0, 1, &m_descriptorManager.GetDescriptorSets()[imageIndex], 0, nullptr);
 
-    uint32_t dynamicOffset = m_object.GetUBOSlot() * m_resourceManager.GetObjectUBOStride();
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 1, 1, m_descriptorManager.GetPerObjectDescriptorSets().data(), 1, &dynamicOffset);
-    m_object.Draw(cmd, m_descriptorManager.GetPerObjectDescriptorSets()[0], m_resourceManager.GetObjectUBOStride());
+    for (Object* obj : m_scene.GetObjects())
+    {
+        if (obj && obj->IsActive())
+        {
+            uint32_t dynamicOffset = obj->GetUBOSlot() * m_resourceManager.GetObjectUBOStride();
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 1, 1, m_descriptorManager.GetPerObjectDescriptorSets().data(), 1, &dynamicOffset);
+            obj->Draw(cmd, m_descriptorManager.GetPerObjectDescriptorSets()[0], m_resourceManager.GetObjectUBOStride());
+        }
+    }
 
     vkCmdEndRendering(cmd);
 
@@ -307,27 +338,34 @@ void Renderer::Render()
     }
 
     float moveSpeed = 300.0f * m_deltaTime;
-    glm::vec3 forward = glm::normalize(m_camera.GetTarget() - m_camera.GetPosition());
-    glm::vec3 right = glm::normalize(glm::cross(forward, m_camera.GetUp()));
+    Camera* camera = m_scene.GetCamera();
+    glm::vec3 forward = glm::normalize(camera->GetTarget() - camera->GetPosition());
+    glm::vec3 right = glm::normalize(glm::cross(forward, camera->GetUp()));
 
     if (m_input->IsPressed(KeyCode::W))
-        m_camera.Move(forward * moveSpeed);
+        camera->Move(forward * moveSpeed);
     if (m_input->IsPressed(KeyCode::S))
-        m_camera.Move(-forward * moveSpeed);
+        camera->Move(-forward * moveSpeed);
     if (m_input->IsPressed(KeyCode::A))
-        m_camera.Move(-right * moveSpeed);
+        camera->Move(-right * moveSpeed);
     if (m_input->IsPressed(KeyCode::D))
-        m_camera.Move(right * moveSpeed);
+        camera->Move(right * moveSpeed);
 
     if (m_input->IsCursorCaptured())
     {
         glm::vec2 mouseDelta = m_input->GetMouseDelta();
         float rotateSpeed = 30 * m_deltaTime;
-        m_camera.Rotate(-mouseDelta.x * rotateSpeed, -mouseDelta.y * rotateSpeed);
+        camera->Rotate(-mouseDelta.x * rotateSpeed, -mouseDelta.y * rotateSpeed);
     }
 
     if (m_input->IsDown(KeyCode::G))
-        m_object.SetActive(!m_object.IsActive());
+    {
+        for (Object* obj : m_scene.GetObjects())
+        {
+            if (obj)
+                obj->SetActive(!obj->IsActive());
+        }
+    }
 
     m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
@@ -362,7 +400,15 @@ void Renderer::Destroy()
             vkDestroyFence(device, m_inFlightFences[i], nullptr);
     }
 
-    m_object.Destroy();
+    for (Object* obj : m_scene.GetObjects())
+    {
+        if (obj)
+        {
+            obj->Destroy();
+            delete obj;
+        }
+    }
+    m_scene.Destroy();
     m_mesh.Destroy();
 
     m_commandBufferManager.Shutdown();

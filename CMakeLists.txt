@@ -23,6 +23,7 @@ set(PROJECT_SOURCES src/main.cpp
                     src/renderer/vulkan/mesh.cpp
                     src/utils/vars/transform.cpp
                     src/renderer/vulkan/object.cpp
+                    src/renderer/vulkan/scene.cpp
                     src/renderer/vulkan/camera.cpp
                     src/renderer/vulkan/material.cpp
                     src/renderer/vulkan/computepipeline.cpp

@@ -32,6 +32,7 @@
 #include <renderer/vulkan/material.h>
 #include <renderer/vulkan/camera.h>
 #include <renderer/vulkan/computepipeline.h>
+#include <renderer/vulkan/scene.h>
 
 #include <utils/input/input.h>
 
@@ -96,9 +97,10 @@ private:
     ResourceManager m_resourceManager;
     Mesh m_mesh;
 
-    Object m_object;
+    Scene m_scene;
     Material m_material;
-    Camera m_camera;
+    Material m_material2;
+    Material m_material3;
     Input* m_input;
 
     ComputePipeline m_computePipeline;
