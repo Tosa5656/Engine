@@ -2,7 +2,8 @@
 
 Window::Window()
 {
-
+    m_window = nullptr;
+    m_windowClosed = false;
 }
 
 Window::Window(std::string title, int width, int height)
@@ -10,12 +11,14 @@ Window::Window(std::string title, int width, int height)
     m_title = title;
     m_width = width;
     m_height = height;
+    m_windowClosed = false;
 
     Init();
 }
 
 Window::~Window()
 {
+    Close();
     m_renderer.Destroy();
 }
 
@@ -35,16 +38,38 @@ void Window::Init()
 
     glfwMakeContextCurrent(m_window);
 
-    m_renderer.Init(m_window);
+    m_input = Input(m_window);
+    m_renderer.Init(m_window, &m_input);
 
     VkDevice device = m_renderer.GetDevice();
     if (device != VK_NULL_HANDLE)
         vkDeviceWaitIdle(device);
 }
 
+void Window::Update()
+{
+    m_input.Update();
+    m_renderer.Render();
+}
+
+void Window::Close()
+{
+    if (m_window != nullptr && !m_windowClosed)
+    {
+        m_windowClosed = true;
+        
+        VkDevice device = m_renderer.GetDevice();
+        if (device != VK_NULL_HANDLE)
+            vkDeviceWaitIdle(device);
+
+        glfwDestroyWindow(m_window);
+        m_window = nullptr;
+    }
+}
+
 bool Window::ShouldActive()
 {
-    return !glfwWindowShouldClose(m_window);
+    return m_window != nullptr && !glfwWindowShouldClose(m_window);
 }
 
 GLFWwindow *Window::GetWindow()
@@ -70,6 +95,11 @@ int Window::GetHeight()
 Renderer *Window::GetRenderer()
 {
     return &m_renderer;
+}
+
+Input *Window::GetInput()
+{
+    return &m_input;
 }
 
 void Window::FramebufferResizeCallback(GLFWwindow *window, int width, int height)

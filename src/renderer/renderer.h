@@ -72,7 +72,7 @@ public:
     Renderer();
     ~Renderer();
 
-    void Init(GLFWwindow* window);
+    void Init(GLFWwindow* window, Input* input);
     void Render();
     void Destroy();
 
@@ -98,7 +98,7 @@ private:
     Object m_object;
     Material m_material;
     Camera m_camera;
-    Input m_input = Input();
+    Input* m_input;
 
     ComputePipeline m_computePipeline;
     bool m_computeResultPrinted = false;

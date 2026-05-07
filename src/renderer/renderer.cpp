@@ -7,9 +7,10 @@ Renderer::~Renderer()
     Destroy();
 }
 
-void Renderer::Init(GLFWwindow *window)
+void Renderer::Init(GLFWwindow *window, Input* input)
 {
     m_window = window;
+    m_input = input;
 
     VkApplicationInfo  appInfo{};
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -53,14 +54,10 @@ void Renderer::Init(GLFWwindow *window)
 
     CreateSyncObjects();
     m_imagesInFlight.resize(m_swapChain.GetSwapChainImages().size(), VK_NULL_HANDLE);
-
-    m_input = Input(m_window);
 }
 
 void Renderer::Render()
 {
-    m_input.Update();
-
     vkWaitForFences(m_device.GetDevice(), 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
 
     uint32_t imageIndex;
@@ -292,23 +289,23 @@ void Renderer::Render()
     glm::vec3 forward = glm::normalize(m_camera.GetTarget() - m_camera.GetPosition());
     glm::vec3 right = glm::normalize(glm::cross(forward, m_camera.GetUp()));
 
-    if (m_input.IsPressed(KeyCode::W))
+    if (m_input->IsPressed(KeyCode::W))
         m_camera.Move(forward * moveSpeed);
-    if (m_input.IsPressed(KeyCode::S))
+    if (m_input->IsPressed(KeyCode::S))
         m_camera.Move(-forward * moveSpeed);
-    if (m_input.IsPressed(KeyCode::A))
+    if (m_input->IsPressed(KeyCode::A))
         m_camera.Move(-right * moveSpeed);
-    if (m_input.IsPressed(KeyCode::D))
+    if (m_input->IsPressed(KeyCode::D))
         m_camera.Move(right * moveSpeed);
 
     float rotateSpeed = 0.004f;
-    if (m_input.IsPressed(KeyCode::Left))
+    if (m_input->IsPressed(KeyCode::Left))
         m_camera.Rotate(rotateSpeed, 0.0f);
-    if (m_input.IsPressed(KeyCode::Right))
+    if (m_input->IsPressed(KeyCode::Right))
         m_camera.Rotate(-rotateSpeed, 0.0f);
-    if (m_input.IsPressed(KeyCode::Up))
+    if (m_input->IsPressed(KeyCode::Up))
         m_camera.Rotate(0.0f, rotateSpeed);
-    if (m_input.IsPressed(KeyCode::Down))
+    if (m_input->IsPressed(KeyCode::Down))
         m_camera.Rotate(0.0f, -rotateSpeed);
 
     m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;

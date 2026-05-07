@@ -3,12 +3,15 @@
 
 int main()
 {
-    Window window = Window("Engine", 800, 600);
+    Window window = Window("Singularity Engine", 800, 600);
 
     while (window.ShouldActive())
     {
         glfwPollEvents();
-        window.GetRenderer()->Render();
+        window.Update();
+
+        if (window.GetInput()->IsDown(KeyCode::Escape))
+            window.Close();
     }
 
     DestroyGLFW();
