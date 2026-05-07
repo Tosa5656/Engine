@@ -75,10 +75,14 @@ void Renderer::Init(GLFWwindow *window, Input* input)
     m_imagesInFlight.resize(m_swapChain.GetSwapChainImages().size(), VK_NULL_HANDLE);
 
     m_device.CreateTimestampQueryPool();
+
+    m_gui.Init(m_device.GetDevice(), m_instance.GetInstance(), m_device.GetPhysicalDevice(), m_device.GetGraphicsQueueFamilyIndex(&m_surface), m_device.GetGraphicsQueue(), m_window, VK_NULL_HANDLE);
 }
 
 void Renderer::Render()
 {
+    m_gui.NewFrame();
+    
     vkWaitForFences(m_device.GetDevice(), 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
 
     uint32_t imageIndex;
@@ -224,6 +228,8 @@ void Renderer::Render()
             obj->Draw(cmd, m_descriptorManager.GetPerObjectDescriptorSets()[0], m_resourceManager.GetObjectUBOStride());
         }
     }
+
+    m_gui.Render(cmd);
 
     vkCmdEndRendering(cmd);
 
@@ -376,6 +382,8 @@ void Renderer::Destroy()
     if (alreadyDestroyed)
         return;
     alreadyDestroyed = true;
+
+    m_gui.Shutdown();
 
     VkDevice device = m_device.GetDevice();
     VkInstance instance = m_instance.GetInstance();

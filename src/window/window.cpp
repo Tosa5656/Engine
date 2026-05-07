@@ -35,7 +35,7 @@ void Window::Init()
 
     glfwSetWindowUserPointer(m_window, this);
     glfwSetFramebufferSizeCallback(m_window, FramebufferResizeCallback);
-    glfwSetMouseButtonCallback(m_window, MouseButtonCallback);
+    glfwSetKeyCallback(m_window, KeyCallback);
 
     glfwMakeContextCurrent(m_window);
 
@@ -116,10 +116,10 @@ void Window::FramebufferResizeCallback(GLFWwindow *window, int width, int height
     win->m_height = height;
 }
 
-void Window::MouseButtonCallback(GLFWwindow *window, int button, int action, int mods)
+void Window::KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mods)
 {
     auto win = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
-    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
+    if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
     {
         win->GetInput()->SetCursorCaptured(true);
     }
