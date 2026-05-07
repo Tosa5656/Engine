@@ -36,7 +36,7 @@ void Renderer::Init(GLFWwindow *window)
     m_resourceManager.CreateObjectBuffer(1);
 
     m_material = Material(glm::vec3(1.0f, 1.0f, 1.0f), 1.0f, 1.0f);
-    m_object.Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), &m_resourceManager, "models/All2.obj");
+    m_object.Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), &m_resourceManager, "models/cube.obj");
     m_object.SetMaterial(&m_material);
     m_object.GetTransform()->SetPosition(glm::vec3(0.0f, 0.0f, 0.0f));
 
@@ -57,7 +57,7 @@ void Renderer::Init(GLFWwindow *window)
     m_input = Input(m_window);
 }
 
-void Renderer::Draw()
+void Renderer::Render()
 {
     m_input.Update();
 
@@ -288,7 +288,7 @@ void Renderer::Draw()
         throw std::runtime_error("failed to present swap chain image!");
     }
 
-    float moveSpeed = 0.002f;
+    float moveSpeed = 0.02f;
     glm::vec3 forward = glm::normalize(m_camera.GetTarget() - m_camera.GetPosition());
     glm::vec3 right = glm::normalize(glm::cross(forward, m_camera.GetUp()));
 
@@ -301,7 +301,7 @@ void Renderer::Draw()
     if (m_input.IsPressed(KeyCode::D))
         m_camera.Move(right * moveSpeed);
 
-    float rotateSpeed = 0.0004f;
+    float rotateSpeed = 0.004f;
     if (m_input.IsPressed(KeyCode::Left))
         m_camera.Rotate(rotateSpeed, 0.0f);
     if (m_input.IsPressed(KeyCode::Right))
@@ -323,6 +323,9 @@ void Renderer::Destroy()
 
     VkDevice device = m_device.GetDevice();
     VkInstance instance = m_instance.GetInstance();
+
+    if (device != VK_NULL_HANDLE)
+        vkDeviceWaitIdle(device);
 
     for (auto& sem : m_imageAvailableSemaphores)
     {

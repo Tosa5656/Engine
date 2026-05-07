@@ -73,14 +73,13 @@ public:
     ~Renderer();
 
     void Init(GLFWwindow* window);
-    void Draw();
+    void Render();
     void Destroy();
 
     void SetFramebufferResized(bool resized);
 
     VkDevice GetDevice();
 private:
-    // Create functions
     void CreateSyncObjects();
     void CreatePerImageSemaphores();
 

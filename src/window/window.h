@@ -12,6 +12,14 @@ public:
     Window();
     Window(std::string title, int width, int height);
     ~Window();
+
+    bool ShouldActive();
+
+    GLFWwindow* GetWindow();
+    std::string GetTitle();
+    int GetWidth();
+    int GetHeight();
+    Renderer* GetRenderer();
 private:
     void Init();
 
