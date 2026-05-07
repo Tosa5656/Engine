@@ -2,6 +2,7 @@
 
 #include <GLFW/glfw3.h>
 #include <unordered_map>
+#include <glm/glm.hpp>
 
 enum KeyCode
 {
@@ -155,6 +156,11 @@ public:
     bool IsMouseDown(MouseKeyCode button);
     bool IsMouseUp(MouseKeyCode button);
 
+    glm::vec2 GetMousePosition();
+    glm::vec2 GetMouseDelta();
+    bool IsCursorCaptured();
+    void SetCursorCaptured(bool captured);
+
     void Update();
 private:
     GLFWwindow* window;
@@ -162,4 +168,8 @@ private:
     std::unordered_map<int, bool> currentState;
     std::unordered_map<int, bool> previousMouseState;
     std::unordered_map<int, bool> currentMouseState;
+
+    glm::vec2 m_previousMousePos = glm::vec2(0.0f);
+    glm::vec2 m_currentMousePos = glm::vec2(0.0f);
+    bool m_cursorCaptured = false;
 };

@@ -10,8 +10,8 @@ int main()
         glfwPollEvents();
         window.Update();
 
-        if (window.GetInput()->IsDown(KeyCode::Escape))
-            window.Close();
+        if (window.GetInput()->IsPressed(KeyCode::Escape))
+            window.GetInput()->SetCursorCaptured(false);
     }
 
     DestroyGLFW();

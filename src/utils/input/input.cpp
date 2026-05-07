@@ -17,6 +17,14 @@ void Input::Update()
         previousMouseState[button] = currentMouseState[button];
         currentMouseState[button] = glfwGetMouseButton(window, button) == GLFW_PRESS;
     }
+
+    if (m_cursorCaptured)
+    {
+        m_previousMousePos = m_currentMousePos;
+        double x, y;
+        glfwGetCursorPos(window, &x, &y);
+        m_currentMousePos = glm::vec2(static_cast<float>(x), static_cast<float>(y));
+    }
 }
 
 bool Input::IsPressed(KeyCode key)
@@ -61,4 +69,32 @@ bool Input::IsMouseDown(MouseKeyCode button)
 {
     int b = static_cast<int>(button);
     return !currentMouseState[b] && previousMouseState[b];
+}
+
+glm::vec2 Input::GetMousePosition()
+{
+    double x, y;
+    glfwGetCursorPos(window, &x, &y);
+    return glm::vec2(static_cast<float>(x), static_cast<float>(y));
+}
+
+glm::vec2 Input::GetMouseDelta()
+{
+    glm::vec2 delta = m_currentMousePos - m_previousMousePos;
+    m_previousMousePos = m_currentMousePos;
+    return delta;
+}
+
+bool Input::IsCursorCaptured()
+{
+    return m_cursorCaptured;
+}
+
+void Input::SetCursorCaptured(bool captured)
+{
+    m_cursorCaptured = captured;
+    if (captured)
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    else
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 }

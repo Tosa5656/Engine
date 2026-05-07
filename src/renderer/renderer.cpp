@@ -319,15 +319,12 @@ void Renderer::Render()
     if (m_input->IsPressed(KeyCode::D))
         m_camera.Move(right * moveSpeed);
 
-    float rotateSpeed = 100 * m_deltaTime;
-    if (m_input->IsPressed(KeyCode::Left))
-        m_camera.Rotate(rotateSpeed, 0.0f);
-    if (m_input->IsPressed(KeyCode::Right))
-        m_camera.Rotate(-rotateSpeed, 0.0f);
-    if (m_input->IsPressed(KeyCode::Up))
-        m_camera.Rotate(0.0f, rotateSpeed);
-    if (m_input->IsPressed(KeyCode::Down))
-        m_camera.Rotate(0.0f, -rotateSpeed);
+    if (m_input->IsCursorCaptured())
+    {
+        glm::vec2 mouseDelta = m_input->GetMouseDelta();
+        float rotateSpeed = 30 * m_deltaTime;
+        m_camera.Rotate(-mouseDelta.x * rotateSpeed, -mouseDelta.y * rotateSpeed);
+    }
 
     m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }

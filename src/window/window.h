@@ -29,6 +29,7 @@ private:
     void Init();
 
     static void FramebufferResizeCallback(GLFWwindow* window, int width, int height);
+    static void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
 
     GLFWwindow* m_window;
     bool m_windowClosed;
