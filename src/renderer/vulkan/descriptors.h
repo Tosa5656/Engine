@@ -11,6 +11,7 @@
 #include <renderer/vulkan/device.h>
 #include <renderer/vulkan/swapchain.h>
 #include <renderer/vulkan/resources.h>
+#include <renderer/vulkan/texture.h>
 
 class DescriptorsManager
 {
@@ -33,6 +34,10 @@ public:
     std::vector<VkDescriptorSet> GetPerObjectDescriptorSets();
     VkDescriptorSetLayout GetComputeDescriptorSetLayout();
     VkDescriptorSet GetComputeDescriptorSet();
+    VkDescriptorSetLayout GetTextureSetLayout() const { return m_textureSetLayout; }
+    VkDescriptorSet GetNullTextureDescriptorSet() const { return m_nullTextureDescriptorSet; }
+
+    VkDescriptorSet CreateTextureDescriptorSet(Texture* texture);
 
 private:
     Device* m_device;
@@ -45,5 +50,10 @@ private:
     VkDescriptorSetLayout m_perFrameSetLayout;
     VkDescriptorSetLayout m_perObjectSetLayout;
     VkDescriptorSetLayout m_computeSetLayout;
+    VkDescriptorSetLayout m_textureSetLayout;
+    VkDescriptorSet m_nullTextureDescriptorSet;
+    VkSampler m_dummySampler;
+    VkImageView m_dummyImageView;
+    VkDeviceMemory m_dummyImageMemory;
     VkDescriptorSet m_computeDescriptorSet;
 };

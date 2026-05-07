@@ -33,6 +33,7 @@
 #include <renderer/vulkan/camera.h>
 #include <renderer/vulkan/computepipeline.h>
 #include <renderer/vulkan/scene.h>
+#include <renderer/vulkan/texture.h>
 
 #include <utils/input/input.h>
 
@@ -101,6 +102,9 @@ private:
     Material m_material;
     Material m_material2;
     Material m_material3;
+    Texture m_texture;
+    Texture m_texture2;
+    Texture m_texture3;
     Input* m_input;
 
     ComputePipeline m_computePipeline;

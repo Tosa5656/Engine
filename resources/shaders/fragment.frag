@@ -7,21 +7,27 @@ layout(location = 3) in float fragMetallic;
 layout(location = 4) in float fragRoughness;
 layout(location = 5) in float fragAO;
 
+layout(set = 2, binding = 0) uniform sampler2D texSampler;
+
 layout(location = 0) out vec4 outColor;
 
 void main()
 {
+    vec3 albedo = texture(texSampler, fragUV).rgb;
+    if (length(albedo) < 0.001)
+        albedo = fragAlbedo;
+
     vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));
     vec3 viewDir = vec3(0.0, 0.0, 1.0);
     vec3 normal = normalize(fragNormal);
 
     float diff = max(dot(normal, lightDir), 0.0);
 
-    vec3 ambient = fragAlbedo * 0.3 * fragAO;
-    vec3 diffuse = fragAlbedo * diff;
+    vec3 ambient = albedo * 0.3 * fragAO;
+    vec3 diffuse = albedo * diff;
 
     float fresnel = fragMetallic * pow(1.0 - max(dot(normal, viewDir), 0.0), 3.0);
-    vec3 metallicReflect = fragAlbedo * fragMetallic * fresnel;
+    vec3 metallicReflect = albedo * fragMetallic * fresnel;
 
     vec3 color = ambient + diffuse + metallicReflect;
     color = color / (color + vec3(1.0));

@@ -1,5 +1,7 @@
 #include "material.h"
 
+#include <renderer/vulkan/device.h>
+
 Material::Material()
 {
     m_data.model = glm::mat4(1.0f);
@@ -19,6 +21,8 @@ Material::Material(glm::vec3 albedo, float metallic, float roughness, float ao, 
     m_data.ao = ao;
     m_data.normalStrength = normalStrength;
 }
+
+Material::~Material() = default;
 
 void Material::SetAlbedo(glm::vec3 albedo)
 {
@@ -73,4 +77,15 @@ float Material::GetNormalStrength() const
 const PerObjectUBO& Material::GetData() const
 {
     return m_data;
+}
+
+void Material::SetTexture(Texture* texture)
+{
+    m_texture = texture;
+}
+
+void Material::Init(Device* device, VmaAllocator allocator)
+{
+    m_device = device;
+    m_allocator = allocator;
 }

@@ -5,11 +5,11 @@
 ## v0.3.0 - Foundation
 
 ### Textures & Materials
-- [ ] 2D texture loading (PNG, JPG, TGA, DDS)
-- [ ] Texture descriptor sets and samplers
+- [x] 2D texture loading (stb_image, VMA, VkImage + VkImageView)
+- [x] Texture descriptor sets and samplers (VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, set=2)
+- [x] Mipmap generation (automatic via vkCmdBlitImage)
+- [x] Texture filtering (linear, sampler with clamp/repeat)
 - [ ] Texture array / atlas support
-- [ ] Mipmap generation
-- [ ] Texture filtering (nearest, linear, anisotropic)
 - [ ] Normal mapping (tangent space normals)
 - [ ] Parallax occlusion mapping (POM)
 - [ ] Relief mapping

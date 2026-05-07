@@ -31,14 +31,28 @@ void Renderer::Init(GLFWwindow *window, Input* input)
     m_swapChain.CreateImageViews(&m_device);
     m_descriptorManager.Init(&m_device, &m_swapChain, &m_resourceManager, 256);
     m_descriptorManager.CreateDescriptorSetLayout();
-    m_pipelineManager.Create(&m_device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetDescriptorSetLayout(1));
+    m_pipelineManager.Create(&m_device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetDescriptorSetLayout(1), m_descriptorManager.GetTextureSetLayout());
     m_commandBufferManager.Init(m_device.GetDevice(), m_device.GetGraphicsQueueFamilyIndex(&m_surface));
     m_resourceManager.CreateUniformBuffers();
     m_resourceManager.CreateObjectBuffer(4);
 
-    m_material = Material(glm::vec3(1.0f, 0.0f, 0.0f), 1.0f, 1.0f);
-    m_material2 = Material(glm::vec3(0.0f, 1.0f, 0.0f), 1.0f, 1.0f);
-    m_material3 = Material(glm::vec3(0.0f, 0.0f, 1.0f), 1.0f, 1.0f);
+    m_material.SetAlbedo(glm::vec3(1.0f, 0.0f, 0.0f));
+    m_material2.SetAlbedo(glm::vec3(0.0f, 1.0f, 0.0f));
+    m_material3.SetAlbedo(glm::vec3(0.0f, 0.0f, 0.0f));
+
+    m_material.Init(&m_device, m_resourceManager.GetAllocator());
+    m_texture.Init(&m_device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool());
+    m_texture.Load("textures/wall.jpg");
+    m_material.SetTexture(&m_texture);
+
+    m_material2.Init(&m_device, m_resourceManager.GetAllocator());
+    m_texture2.Init(&m_device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool());
+    m_texture2.Load("textures/container.jpg");
+    m_material2.SetTexture(&m_texture2);
+    m_material3.Init(&m_device, m_resourceManager.GetAllocator());
+    m_texture3.Init(&m_device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool());
+    m_texture3.Load("textures/awesomeface.png");
+    m_material3.SetTexture(&m_texture3);
 
     m_scene.Init();
 
@@ -46,6 +60,7 @@ void Renderer::Init(GLFWwindow *window, Input* input)
     obj1->Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), &m_resourceManager, "models/cube.obj");
     obj1->SetMaterial(&m_material);
     obj1->GetTransform()->SetPosition(glm::vec3(0.0f, 0.0f, 0.0f));
+
     m_scene.AddObject(obj1);
 
     Object* obj2 = new Object();
@@ -65,6 +80,21 @@ void Renderer::Init(GLFWwindow *window, Input* input)
 
     m_descriptorManager.CreateDescriptorPool();
     m_descriptorManager.CreateDescriptorSets();
+
+    if (m_material.HasTexture())
+    {
+        m_material.SetDescriptorSet(m_descriptorManager.CreateTextureDescriptorSet(m_material.GetTexture()));
+    }
+
+    if (m_material2.HasTexture())
+    {
+        m_material2.SetDescriptorSet(m_descriptorManager.CreateTextureDescriptorSet(m_material2.GetTexture()));
+    }
+
+    if (m_material3.HasTexture())
+    {
+        m_material3.SetDescriptorSet(m_descriptorManager.CreateTextureDescriptorSet(m_material3.GetTexture()));
+    }
 
     m_resourceManager.CreateComputeResultBuffer();
     m_descriptorManager.CreateComputeDescriptorSetLayout();
@@ -221,6 +251,19 @@ void Renderer::Render()
         {
             uint32_t dynamicOffset = obj->GetUBOSlot() * m_resourceManager.GetObjectUBOStride();
             vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 1, 1, m_descriptorManager.GetPerObjectDescriptorSets().data(), 1, &dynamicOffset);
+
+            Material* material = obj->GetMaterial();
+            VkDescriptorSet textureDescriptorSet;
+            if (material && material->HasTexture() && material->GetDescriptorSet() != VK_NULL_HANDLE)
+            {
+                textureDescriptorSet = material->GetDescriptorSet();
+            }
+            else
+            {
+                textureDescriptorSet = m_descriptorManager.GetNullTextureDescriptorSet();
+            }
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 2, 1, &textureDescriptorSet, 0, nullptr);
+
             obj->Draw(cmd, m_descriptorManager.GetPerObjectDescriptorSets()[0], m_resourceManager.GetObjectUBOStride());
         }
     }
@@ -412,6 +455,10 @@ void Renderer::Destroy()
     m_mesh.Destroy();
 
     m_commandBufferManager.Shutdown();
+
+    m_texture.Cleanup();
+    m_texture2.Cleanup();
+    m_texture3.Cleanup();
 
     m_resourceManager.Cleanup();
 
