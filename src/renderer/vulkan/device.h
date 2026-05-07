@@ -42,6 +42,11 @@ public:
     uint32_t GetGraphicsQueueFamilyIndex(Surface* surface);
     VkQueue GetPresentQueue();
     uint32_t GetPresentQueueFamilyIndex(Surface* surface);
+
+    void CreateTimestampQueryPool();
+    VkQueryPool GetTimestampQueryPool();
+    float GetTimestampPeriod();
+    void DestroyTimestampQueryPool();
 private:
     Instance* m_instance;
 
@@ -49,6 +54,9 @@ private:
     VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
     VkQueue m_graphicsQueue = VK_NULL_HANDLE;
     VkQueue m_presentQueue = VK_NULL_HANDLE;
+
+    VkQueryPool m_timestampQueryPool = VK_NULL_HANDLE;
+    float m_timestampPeriod = 0.0f;
 
     const std::vector<const char*> m_deviceExtensions = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,

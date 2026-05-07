@@ -102,6 +102,11 @@ Input *Window::GetInput()
     return &m_input;
 }
 
+float Window::GetDeltaTime()
+{
+    return m_renderer.GetDeltaTime();
+}
+
 void Window::FramebufferResizeCallback(GLFWwindow *window, int width, int height)
 {
     auto win = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));

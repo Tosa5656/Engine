@@ -54,6 +54,8 @@ void Renderer::Init(GLFWwindow *window, Input* input)
 
     CreateSyncObjects();
     m_imagesInFlight.resize(m_swapChain.GetSwapChainImages().size(), VK_NULL_HANDLE);
+
+    m_device.CreateTimestampQueryPool();
 }
 
 void Renderer::Render()
@@ -94,6 +96,9 @@ void Renderer::Render()
 
     VkCommandBufferBeginInfo beginInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
     vkBeginCommandBuffer(cmd, &beginInfo);
+
+    vkCmdResetQueryPool(cmd, m_device.GetTimestampQueryPool(), 0, 2);
+    vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, m_device.GetTimestampQueryPool(), 0);
 
     VkImageMemoryBarrier barrier{};
     barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -227,6 +232,8 @@ void Renderer::Render()
         0, nullptr,
         1, &barrier);
 
+    vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, m_device.GetTimestampQueryPool(), 1);
+
     if (vkEndCommandBuffer(cmd) != VK_SUCCESS)
         throw std::runtime_error("failed to record command buffer!");
 
@@ -252,6 +259,20 @@ void Renderer::Render()
         throw std::runtime_error("failed to submit draw command buffer!");
 
     vkWaitForFences(m_device.GetDevice(), 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
+
+    uint64_t timestamps[2];
+    vkGetQueryPoolResults(
+        m_device.GetDevice(),
+        m_device.GetTimestampQueryPool(),
+        0,
+        2,
+        sizeof(timestamps),
+        timestamps,
+        sizeof(uint64_t),
+        VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
+
+    uint64_t deltaTicks = timestamps[1] - timestamps[0];
+    m_deltaTime = static_cast<float>(deltaTicks * m_device.GetTimestampPeriod()) / 1e9f;
 
     if (!m_computeResultPrinted)
     {
@@ -285,7 +306,7 @@ void Renderer::Render()
         throw std::runtime_error("failed to present swap chain image!");
     }
 
-    float moveSpeed = 0.02f;
+    float moveSpeed = 300.0f * m_deltaTime;
     glm::vec3 forward = glm::normalize(m_camera.GetTarget() - m_camera.GetPosition());
     glm::vec3 right = glm::normalize(glm::cross(forward, m_camera.GetUp()));
 
@@ -298,7 +319,7 @@ void Renderer::Render()
     if (m_input->IsPressed(KeyCode::D))
         m_camera.Move(right * moveSpeed);
 
-    float rotateSpeed = 0.004f;
+    float rotateSpeed = 100 * m_deltaTime;
     if (m_input->IsPressed(KeyCode::Left))
         m_camera.Rotate(rotateSpeed, 0.0f);
     if (m_input->IsPressed(KeyCode::Right))
@@ -353,6 +374,8 @@ void Renderer::Destroy()
     m_pipelineManager.Shutdown(&m_device);
     m_swapChain.Cleanup(&m_device);
 
+    m_device.DestroyTimestampQueryPool();
+
     VmaAllocator allocator = m_resourceManager.GetAllocator();
     if (allocator != VK_NULL_HANDLE)
         vmaDestroyAllocator(allocator);
@@ -378,6 +401,11 @@ void Renderer::SetFramebufferResized(bool resized)
 VkDevice Renderer::GetDevice()
 {
     return m_device.GetDevice();
+}
+
+float Renderer::GetDeltaTime()
+{
+    return m_deltaTime;
 }
 
 void Renderer::CreateSyncObjects()

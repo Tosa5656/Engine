@@ -24,6 +24,7 @@ public:
     int GetHeight();
     Renderer* GetRenderer();
     Input* GetInput();
+    float GetDeltaTime();
 private:
     void Init();
 

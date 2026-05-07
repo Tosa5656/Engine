@@ -169,3 +169,37 @@ uint32_t Device::GetPresentQueueFamilyIndex(Surface* surface)
 {
     return FindQueueFamilies(m_physicalDevice, surface).presentFamily.value();
 }
+
+void Device::CreateTimestampQueryPool()
+{
+    VkQueryPoolCreateInfo queryPoolInfo{};
+    queryPoolInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+    queryPoolInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
+    queryPoolInfo.queryCount = 2;
+
+    if (vkCreateQueryPool(m_device, &queryPoolInfo, nullptr, &m_timestampQueryPool) != VK_SUCCESS)
+        throw std::runtime_error("failed to create timestamp query pool!");
+
+    VkPhysicalDeviceProperties properties;
+    vkGetPhysicalDeviceProperties(m_physicalDevice, &properties);
+    m_timestampPeriod = properties.limits.timestampPeriod;
+}
+
+VkQueryPool Device::GetTimestampQueryPool()
+{
+    return m_timestampQueryPool;
+}
+
+float Device::GetTimestampPeriod()
+{
+    return m_timestampPeriod;
+}
+
+void Device::DestroyTimestampQueryPool()
+{
+    if (m_timestampQueryPool != VK_NULL_HANDLE)
+    {
+        vkDestroyQueryPool(m_device, m_timestampQueryPool, nullptr);
+        m_timestampQueryPool = VK_NULL_HANDLE;
+    }
+}

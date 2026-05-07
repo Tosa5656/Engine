@@ -79,6 +79,7 @@ public:
     void SetFramebufferResized(bool resized);
 
     VkDevice GetDevice();
+    float GetDeltaTime();
 private:
     void CreateSyncObjects();
     void CreatePerImageSemaphores();
@@ -109,4 +110,5 @@ private:
     std::vector<VkFence> m_imagesInFlight;
     size_t m_currentFrame = 0;
     bool m_framebufferResized = false;
+    float m_deltaTime = 0.0f;
 };
