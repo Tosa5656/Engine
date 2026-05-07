@@ -31,7 +31,7 @@ void Renderer::Init(GLFWwindow *window, Input* input)
     m_swapChain.CreateImageViews(&m_device);
     m_descriptorManager.Init(&m_device, &m_swapChain, &m_resourceManager, 256);
     m_descriptorManager.CreateDescriptorSetLayout();
-    m_pipelineManager.Create(&m_device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetDescriptorSetLayout(1), m_descriptorManager.GetTextureSetLayout());
+    m_pipelineManager.Create(&m_device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetDescriptorSetLayout(1), m_descriptorManager.GetTextureSetLayout(), m_descriptorManager.GetNormalMapSetLayout());
     m_commandBufferManager.Init(m_device.GetDevice(), m_device.GetGraphicsQueueFamilyIndex(&m_surface));
     m_resourceManager.CreateUniformBuffers();
     m_resourceManager.CreateObjectBuffer(4);
@@ -45,15 +45,17 @@ void Renderer::Init(GLFWwindow *window, Input* input)
     m_material3.Init(&m_device, m_resourceManager.GetAllocator());
 
     m_textureAtlas.Init(&m_device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool(), 16);
-    m_textureAtlas.AddTexture("textures/wall.jpg");
-    m_textureAtlas.AddTexture("textures/container.jpg");
-    m_textureAtlas.AddTexture("textures/awesomeface.png");
+    m_textureAtlas.AddTexture("textures/brickwall.jpg");
     m_textureAtlas.Build();
 
     m_singleTexture.Init(&m_device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool());
-    m_singleTexture.Load("textures/wall.jpg");
+    m_singleTexture.Load("textures/brickwall.jpg");
+
+    m_normalMap.Init(&m_device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool());
+    m_normalMap.Load("textures/NormalMap.png");
 
     m_material.SetTextureArray(&m_textureAtlas, 0);
+    m_material.SetNormalMap(&m_normalMap);
     m_material2.SetTexture(&m_singleTexture);
     m_material3.SetTexture(nullptr);
 
@@ -106,6 +108,11 @@ void Renderer::Init(GLFWwindow *window, Input* input)
             m_material3.SetDescriptorSet(m_descriptorManager.CreateTextureDescriptorSet(m_material3.GetTextureArray()));
         else if (m_material3.GetTexture())
             m_material3.SetDescriptorSet(m_descriptorManager.CreateTextureDescriptorSet(m_material3.GetTexture()));
+    }
+
+    if (m_material.GetNormalMap())
+    {
+        m_material.SetNormalMapDescriptorSet(m_descriptorManager.CreateNormalMapDescriptorSet(m_material.GetNormalMap()));
     }
 
     m_resourceManager.CreateComputeResultBuffer();
@@ -275,6 +282,17 @@ void Renderer::Render()
                 textureDescriptorSet = m_descriptorManager.GetNullTextureDescriptorSet();
             }
             vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 2, 1, &textureDescriptorSet, 0, nullptr);
+
+            VkDescriptorSet normalMapDescriptorSet;
+            if (material && material->GetNormalMapDescriptorSet() != VK_NULL_HANDLE)
+            {
+                normalMapDescriptorSet = material->GetNormalMapDescriptorSet();
+            }
+            else
+            {
+                normalMapDescriptorSet = m_descriptorManager.GetNullNormalMapDescriptorSet();
+            }
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 3, 1, &normalMapDescriptorSet, 0, nullptr);
 
             obj->Draw(cmd, m_descriptorManager.GetPerObjectDescriptorSets()[0], m_resourceManager.GetObjectUBOStride());
         }
@@ -469,6 +487,7 @@ void Renderer::Destroy()
     m_commandBufferManager.Shutdown();
 
     m_singleTexture.Cleanup();
+    m_normalMap.Cleanup();
     m_textureAtlas.Cleanup();
 
     m_resourceManager.Cleanup();

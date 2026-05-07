@@ -1,7 +1,7 @@
 #include "descriptors.h"
 #include "resources.h"
 
-DescriptorsManager::DescriptorsManager() : m_dummySampler(VK_NULL_HANDLE), m_dummyImageView(VK_NULL_HANDLE), m_dummyImageMemory(VK_NULL_HANDLE) {}
+DescriptorsManager::DescriptorsManager() : m_dummySampler(VK_NULL_HANDLE), m_dummyImageView(VK_NULL_HANDLE), m_dummyImageMemory(VK_NULL_HANDLE), m_normalMapSetLayout(VK_NULL_HANDLE), m_nullNormalMapDescriptorSet(VK_NULL_HANDLE) {}
 DescriptorsManager::~DescriptorsManager() {}
 
 void DescriptorsManager::Init(Device* device, SwapChain* swapChain, ResourceManager* resourceManager, uint32_t maxObjects)
@@ -50,6 +50,12 @@ void DescriptorsManager::Cleanup()
         m_textureSetLayout = VK_NULL_HANDLE;
     }
 
+    if (m_normalMapSetLayout != VK_NULL_HANDLE)
+    {
+        vkDestroyDescriptorSetLayout(device, m_normalMapSetLayout, nullptr);
+        m_normalMapSetLayout = VK_NULL_HANDLE;
+    }
+
     if (m_dummySampler != VK_NULL_HANDLE)
     {
         vkDestroySampler(device, m_dummySampler, nullptr);
@@ -71,7 +77,7 @@ void DescriptorsManager::Cleanup()
 
 void DescriptorsManager::CreateDescriptorPool()
 {
-    std::vector<VkDescriptorPoolSize> poolSizes(4);
+    std::vector<VkDescriptorPoolSize> poolSizes(6);
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSizes[0].descriptorCount = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size());
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
@@ -80,12 +86,16 @@ void DescriptorsManager::CreateDescriptorPool()
     poolSizes[2].descriptorCount = 1;
     poolSizes[3].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     poolSizes[3].descriptorCount = 256;
+    poolSizes[4].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[4].descriptorCount = 256;
+    poolSizes[5].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[5].descriptorCount = 1;
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
     poolInfo.pPoolSizes = poolSizes.data();
-    poolInfo.maxSets = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size()) + 2 + 256;
+    poolInfo.maxSets = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size()) + 2 + 256 + 256 + 1;
 
     if (vkCreateDescriptorPool(m_device->GetDevice(), &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS)
     {
@@ -250,6 +260,30 @@ void DescriptorsManager::CreateDescriptorSets()
     nullDescriptorWrite.pImageInfo = &nullImageInfo;
 
     vkUpdateDescriptorSets(m_device->GetDevice(), 1, &nullDescriptorWrite, 0, nullptr);
+
+    VkDescriptorSetAllocateInfo nullNormalAllocInfo{};
+    nullNormalAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    nullNormalAllocInfo.descriptorPool = m_descriptorPool;
+    nullNormalAllocInfo.descriptorSetCount = 1;
+    nullNormalAllocInfo.pSetLayouts = &m_normalMapSetLayout;
+
+    if (vkAllocateDescriptorSets(m_device->GetDevice(), &nullNormalAllocInfo, &m_nullNormalMapDescriptorSet) != VK_SUCCESS)
+        throw std::runtime_error("failed to allocate null normal map descriptor set!");
+
+    VkDescriptorImageInfo nullNormalImageInfo{};
+    nullNormalImageInfo.sampler = m_dummySampler;
+    nullNormalImageInfo.imageView = m_dummyImageView;
+    nullNormalImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkWriteDescriptorSet nullNormalDescriptorWrite{};
+    nullNormalDescriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    nullNormalDescriptorWrite.dstSet = m_nullNormalMapDescriptorSet;
+    nullNormalDescriptorWrite.dstBinding = 0;
+    nullNormalDescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    nullNormalDescriptorWrite.descriptorCount = 1;
+    nullNormalDescriptorWrite.pImageInfo = &nullNormalImageInfo;
+
+    vkUpdateDescriptorSets(m_device->GetDevice(), 1, &nullNormalDescriptorWrite, 0, nullptr);
 }
 
 void DescriptorsManager::CreateDescriptorSetLayout()
@@ -300,6 +334,22 @@ void DescriptorsManager::CreateDescriptorSetLayout()
     if (vkCreateDescriptorSetLayout(m_device->GetDevice(), &textureLayoutInfo, nullptr, &m_textureSetLayout) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to create texture descriptor set layout!");
+    }
+
+    VkDescriptorSetLayoutBinding normalMapBinding{};
+    normalMapBinding.binding = 0;
+    normalMapBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    normalMapBinding.descriptorCount = 1;
+    normalMapBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo normalMapLayoutInfo{};
+    normalMapLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    normalMapLayoutInfo.bindingCount = 1;
+    normalMapLayoutInfo.pBindings = &normalMapBinding;
+
+    if (vkCreateDescriptorSetLayout(m_device->GetDevice(), &normalMapLayoutInfo, nullptr, &m_normalMapSetLayout) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create normal map descriptor set layout!");
     }
 }
 
@@ -392,6 +442,37 @@ VkDescriptorSet DescriptorsManager::CreateTextureDescriptorSet(Texture* texture)
 
     if (vkAllocateDescriptorSets(m_device->GetDevice(), &allocInfo, &descriptorSet) != VK_SUCCESS)
         throw std::runtime_error("failed to allocate texture descriptor set!");
+
+    VkDescriptorImageInfo imageInfo{};
+    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageInfo.imageView = texture->GetImageView();
+    imageInfo.sampler = texture->GetSampler();
+
+    VkWriteDescriptorSet descriptorWrite{};
+    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrite.dstSet = descriptorSet;
+    descriptorWrite.dstBinding = 0;
+    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    descriptorWrite.descriptorCount = 1;
+    descriptorWrite.pImageInfo = &imageInfo;
+
+vkUpdateDescriptorSets(m_device->GetDevice(), 1, &descriptorWrite, 0, nullptr);
+
+    return descriptorSet;
+}
+
+VkDescriptorSet DescriptorsManager::CreateNormalMapDescriptorSet(Texture* texture)
+{
+    VkDescriptorSet descriptorSet;
+
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = m_descriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = &m_normalMapSetLayout;
+
+    if (vkAllocateDescriptorSets(m_device->GetDevice(), &allocInfo, &descriptorSet) != VK_SUCCESS)
+        throw std::runtime_error("failed to allocate normal map descriptor set!");
 
     VkDescriptorImageInfo imageInfo{};
     imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;

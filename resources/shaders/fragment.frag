@@ -7,8 +7,11 @@ layout(location = 3) in vec3 fragAlbedo;
 layout(location = 4) in float fragMetallic;
 layout(location = 5) in float fragRoughness;
 layout(location = 6) in float fragAO;
+layout(location = 7) in vec3 fragTangent;
+layout(location = 8) in vec3 fragBitangent;
 
 layout(set = 2, binding = 0) uniform sampler2D texSampler;
+layout(set = 3, binding = 0) uniform sampler2D texNormalSampler;
 
 layout(location = 0) out vec4 outColor;
 
@@ -18,9 +21,15 @@ void main()
     if (length(albedo) < 0.001)
         albedo = fragAlbedo;
 
+    vec3 normalMap = texture(texNormalSampler, fragUVAtlas).rgb;
+    vec3 tangent = normalize(fragTangent);
+    vec3 bitangent = normalize(fragBitangent);
+    vec3 N = normalize(fragNormal);
+    mat3 TBN = mat3(tangent, bitangent, N);
+    vec3 normal = normalize(TBN * (normalMap * 2.0 - 1.0));
+
     vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));
     vec3 viewDir = vec3(0.0, 0.0, 1.0);
-    vec3 normal = normalize(fragNormal);
 
     float diff = max(dot(normal, lightDir), 0.0);
 

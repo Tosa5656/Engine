@@ -36,10 +36,13 @@ public:
     VkDescriptorSetLayout GetComputeDescriptorSetLayout();
     VkDescriptorSet GetComputeDescriptorSet();
     VkDescriptorSetLayout GetTextureSetLayout() const { return m_textureSetLayout; }
+    VkDescriptorSetLayout GetNormalMapSetLayout() const { return m_normalMapSetLayout; }
     VkDescriptorSet GetNullTextureDescriptorSet() const { return m_nullTextureDescriptorSet; }
+    VkDescriptorSet GetNullNormalMapDescriptorSet() const { return m_nullNormalMapDescriptorSet; }
 
     VkDescriptorSet CreateTextureDescriptorSet(Texture* texture);
     VkDescriptorSet CreateTextureDescriptorSet(TextureArray* textureArray);
+    VkDescriptorSet CreateNormalMapDescriptorSet(Texture* texture);
 
 private:
     Device* m_device;
@@ -53,7 +56,9 @@ private:
     VkDescriptorSetLayout m_perObjectSetLayout;
     VkDescriptorSetLayout m_computeSetLayout;
     VkDescriptorSetLayout m_textureSetLayout;
+    VkDescriptorSetLayout m_normalMapSetLayout;
     VkDescriptorSet m_nullTextureDescriptorSet;
+    VkDescriptorSet m_nullNormalMapDescriptorSet;
     VkSampler m_dummySampler;
     VkImageView m_dummyImageView;
     VkDeviceMemory m_dummyImageMemory;

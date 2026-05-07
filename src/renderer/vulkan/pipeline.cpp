@@ -7,7 +7,7 @@
 PipelineManager::PipelineManager() {}
 PipelineManager::~PipelineManager() {}
 
-void PipelineManager::Create(Device* device, SwapChain* swapChain, VkDescriptorSetLayout perFrameSetLayout, VkDescriptorSetLayout perObjectSetLayout, VkDescriptorSetLayout textureSetLayout)
+void PipelineManager::Create(Device* device, SwapChain* swapChain, VkDescriptorSetLayout perFrameSetLayout, VkDescriptorSetLayout perObjectSetLayout, VkDescriptorSetLayout textureSetLayout, VkDescriptorSetLayout normalMapSetLayout)
 {
     auto vertShaderCode = ReadFile("shaders/vertex.spv");
     auto fragShaderCode = ReadFile("shaders/fragment.spv");
@@ -98,11 +98,11 @@ void PipelineManager::Create(Device* device, SwapChain* swapChain, VkDescriptorS
     colorBlending.blendConstants[2] = 0.0f;
     colorBlending.blendConstants[3] = 0.0f;
 
-    VkDescriptorSetLayout setLayouts[] = { perFrameSetLayout, perObjectSetLayout, textureSetLayout };
+    VkDescriptorSetLayout setLayouts[] = { perFrameSetLayout, perObjectSetLayout, textureSetLayout, normalMapSetLayout };
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 3;
+    pipelineLayoutInfo.setLayoutCount = 4;
     pipelineLayoutInfo.pSetLayouts = setLayouts;
     pipelineLayoutInfo.pushConstantRangeCount = 0;
     pipelineLayoutInfo.pPushConstantRanges = nullptr;

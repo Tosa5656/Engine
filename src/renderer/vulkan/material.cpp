@@ -92,6 +92,11 @@ void Material::SetTextureArray(TextureArray* textureArray, uint32_t textureIndex
     m_texture = nullptr;
 }
 
+void Material::SetNormalMap(Texture* normalMap)
+{
+    m_normalMap = normalMap;
+}
+
 void Material::Init(Device* device, VmaAllocator allocator)
 {
     m_device = device;
