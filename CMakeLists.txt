@@ -28,6 +28,7 @@ set(PROJECT_SOURCES src/main.cpp
                     src/renderer/vulkan/material.cpp
                     src/renderer/vulkan/computepipeline.cpp
                     src/renderer/vulkan/texture.cpp
+                    src/renderer/vulkan/texturearray.cpp
                     src/utils/input/input.cpp)
 add_executable(${PROJECT_NAME} ${PROJECT_SOURCES})
 include_directories(src/)

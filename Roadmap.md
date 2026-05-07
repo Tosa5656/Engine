@@ -5,11 +5,11 @@
 ## v0.3.0 - Foundation
 
 ### Textures & Materials
-- [x] 2D texture loading (stb_image, VMA, VkImage + VkImageView)
-- [x] Texture descriptor sets and samplers (VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, set=2)
-- [x] Mipmap generation (automatic via vkCmdBlitImage)
-- [x] Texture filtering (linear, sampler with clamp/repeat)
-- [ ] Texture array / atlas support
+- [x] 2D texture loading
+- [x] Texture descriptor sets and samplers
+- [x] Mipmap generation
+- [x] Texture filtering 
+- [x] Texture array / atlas support
 - [ ] Normal mapping (tangent space normals)
 - [ ] Parallax occlusion mapping (POM)
 - [ ] Relief mapping
@@ -28,7 +28,7 @@
 ### Light
 - [ ] Point light (position, color, intensity, radius)
 - [ ] Directional light (direction, color, intensity)
-- [ ] Spot light (position, direction, cone angle, penumbra)
+- [ ] Spotlight (position, direction, cone angle, penumbra)
 - [ ] Light types enumeration and registry
 - [ ] Deferred shading G-buffer (position, normal, albedo, emissive)
 - [ ] Forward+ / tiled rendering fallback

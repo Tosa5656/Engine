@@ -82,6 +82,14 @@ const PerObjectUBO& Material::GetData() const
 void Material::SetTexture(Texture* texture)
 {
     m_texture = texture;
+    m_textureArray = nullptr;
+}
+
+void Material::SetTextureArray(TextureArray* textureArray, uint32_t textureIndex)
+{
+    m_textureArray = textureArray;
+    m_textureIndex = textureIndex;
+    m_texture = nullptr;
 }
 
 void Material::Init(Device* device, VmaAllocator allocator)

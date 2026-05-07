@@ -12,6 +12,7 @@
 #include <renderer/vulkan/swapchain.h>
 #include <renderer/vulkan/resources.h>
 #include <renderer/vulkan/texture.h>
+#include <renderer/vulkan/texturearray.h>
 
 class DescriptorsManager
 {
@@ -38,6 +39,7 @@ public:
     VkDescriptorSet GetNullTextureDescriptorSet() const { return m_nullTextureDescriptorSet; }
 
     VkDescriptorSet CreateTextureDescriptorSet(Texture* texture);
+    VkDescriptorSet CreateTextureDescriptorSet(TextureArray* textureArray);
 
 private:
     Device* m_device;

@@ -6,6 +6,7 @@
 
 #include <renderer/vulkan/resources.h>
 #include <renderer/vulkan/texture.h>
+#include <renderer/vulkan/texturearray.h>
 
 class Device;
 
@@ -24,6 +25,7 @@ public:
     void SetAO(float ao);
     void SetNormalStrength(float normalStrength);
     void SetTexture(Texture* texture);
+    void SetTextureArray(TextureArray* textureArray, uint32_t textureIndex);
     void Init(Device* device, VmaAllocator allocator);
 
     glm::vec3 GetAlbedo() const;
@@ -32,7 +34,9 @@ public:
     float GetAO() const;
     float GetNormalStrength() const;
     Texture* GetTexture() const { return m_texture; }
-    bool HasTexture() const { return m_texture != nullptr; }
+    TextureArray* GetTextureArray() const { return m_textureArray; }
+    bool HasTexture() const { return m_texture != nullptr || m_textureArray != nullptr; }
+    uint32_t GetTextureIndex() const { return m_textureIndex; }
 
     const PerObjectUBO& GetData() const;
 
@@ -42,6 +46,8 @@ public:
 private:
     PerObjectUBO m_data;
     Texture* m_texture = nullptr;
+    TextureArray* m_textureArray = nullptr;
+    uint32_t m_textureIndex = 0;
     VkDescriptorSet m_textureDescriptorSet = VK_NULL_HANDLE;
     Device* m_device = nullptr;
     VmaAllocator m_allocator = VK_NULL_HANDLE;

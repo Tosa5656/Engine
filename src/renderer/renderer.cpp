@@ -36,23 +36,26 @@ void Renderer::Init(GLFWwindow *window, Input* input)
     m_resourceManager.CreateUniformBuffers();
     m_resourceManager.CreateObjectBuffer(4);
 
-    m_material.SetAlbedo(glm::vec3(1.0f, 0.0f, 0.0f));
-    m_material2.SetAlbedo(glm::vec3(0.0f, 1.0f, 0.0f));
-    m_material3.SetAlbedo(glm::vec3(0.0f, 0.0f, 0.0f));
+    m_material.SetAlbedo(glm::vec3(1.0f, 1.0f, 1.0f));
+    m_material2.SetAlbedo(glm::vec3(1.0f, 1.0f, 1.0f));
+    m_material3.SetAlbedo(glm::vec3(1.0f, 0.0f, 0.0f));
 
     m_material.Init(&m_device, m_resourceManager.GetAllocator());
-    m_texture.Init(&m_device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool());
-    m_texture.Load("textures/wall.jpg");
-    m_material.SetTexture(&m_texture);
-
     m_material2.Init(&m_device, m_resourceManager.GetAllocator());
-    m_texture2.Init(&m_device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool());
-    m_texture2.Load("textures/container.jpg");
-    m_material2.SetTexture(&m_texture2);
     m_material3.Init(&m_device, m_resourceManager.GetAllocator());
-    m_texture3.Init(&m_device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool());
-    m_texture3.Load("textures/awesomeface.png");
-    m_material3.SetTexture(&m_texture3);
+
+    m_textureAtlas.Init(&m_device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool(), 16);
+    m_textureAtlas.AddTexture("textures/wall.jpg");
+    m_textureAtlas.AddTexture("textures/container.jpg");
+    m_textureAtlas.AddTexture("textures/awesomeface.png");
+    m_textureAtlas.Build();
+
+    m_singleTexture.Init(&m_device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool());
+    m_singleTexture.Load("textures/wall.jpg");
+
+    m_material.SetTextureArray(&m_textureAtlas, 0);
+    m_material2.SetTexture(&m_singleTexture);
+    m_material3.SetTexture(nullptr);
 
     m_scene.Init();
 
@@ -83,17 +86,26 @@ void Renderer::Init(GLFWwindow *window, Input* input)
 
     if (m_material.HasTexture())
     {
-        m_material.SetDescriptorSet(m_descriptorManager.CreateTextureDescriptorSet(m_material.GetTexture()));
+        if (m_material.GetTextureArray())
+            m_material.SetDescriptorSet(m_descriptorManager.CreateTextureDescriptorSet(m_material.GetTextureArray()));
+        else if (m_material.GetTexture())
+            m_material.SetDescriptorSet(m_descriptorManager.CreateTextureDescriptorSet(m_material.GetTexture()));
     }
 
     if (m_material2.HasTexture())
     {
-        m_material2.SetDescriptorSet(m_descriptorManager.CreateTextureDescriptorSet(m_material2.GetTexture()));
+        if (m_material2.GetTextureArray())
+            m_material2.SetDescriptorSet(m_descriptorManager.CreateTextureDescriptorSet(m_material2.GetTextureArray()));
+        else if (m_material2.GetTexture())
+            m_material2.SetDescriptorSet(m_descriptorManager.CreateTextureDescriptorSet(m_material2.GetTexture()));
     }
 
     if (m_material3.HasTexture())
     {
-        m_material3.SetDescriptorSet(m_descriptorManager.CreateTextureDescriptorSet(m_material3.GetTexture()));
+        if (m_material3.GetTextureArray())
+            m_material3.SetDescriptorSet(m_descriptorManager.CreateTextureDescriptorSet(m_material3.GetTextureArray()));
+        else if (m_material3.GetTexture())
+            m_material3.SetDescriptorSet(m_descriptorManager.CreateTextureDescriptorSet(m_material3.GetTexture()));
     }
 
     m_resourceManager.CreateComputeResultBuffer();
@@ -456,9 +468,8 @@ void Renderer::Destroy()
 
     m_commandBufferManager.Shutdown();
 
-    m_texture.Cleanup();
-    m_texture2.Cleanup();
-    m_texture3.Cleanup();
+    m_singleTexture.Cleanup();
+    m_textureAtlas.Cleanup();
 
     m_resourceManager.Cleanup();
 

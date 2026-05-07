@@ -6,10 +6,11 @@ layout(location = 2) in vec2 inUV;
 
 layout(location = 0) out vec3 fragNormal;
 layout(location = 1) out vec2 fragUV;
-layout(location = 2) out vec3 fragAlbedo;
-layout(location = 3) out float fragMetallic;
-layout(location = 4) out float fragRoughness;
-layout(location = 5) out float fragAO;
+layout(location = 2) out vec2 fragUVAtlas;
+layout(location = 3) out vec3 fragAlbedo;
+layout(location = 4) out float fragMetallic;
+layout(location = 5) out float fragRoughness;
+layout(location = 6) out float fragAO;
 
 layout(set = 0, binding = 0) uniform PerFrameUBO
 {
@@ -25,6 +26,8 @@ layout(set = 1, binding = 0) uniform PerObjectUBO
     float roughness;
     float ao;
     float normalStrength;
+    vec2 uvOffset;
+    vec2 uvScale;
 } perObject;
 
 void main()
@@ -32,6 +35,7 @@ void main()
     mat3 normalMatrix = mat3(transpose(inverse(perObject.model))) * perObject.normalStrength;
     fragNormal = normalMatrix * inNormal;
     fragUV = inUV;
+    fragUVAtlas = inUV * perObject.uvScale + perObject.uvOffset;
     fragAlbedo = perObject.albedo;
     fragMetallic = perObject.metallic;
     fragRoughness = perObject.roughness;

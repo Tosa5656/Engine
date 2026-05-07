@@ -60,6 +60,19 @@ void Object::UpdateUBO(ResourceManager* resourceManager)
     {
         PerObjectUBO uboData = m_material->GetData();
         uboData.model = m_transform.GetTransformationMatrix();
+
+        if (m_material->GetTextureArray())
+        {
+            const auto& texInfo = m_material->GetTextureArray()->GetTextureInfo(m_material->GetTextureIndex());
+            uboData.uvOffset = texInfo.offset;
+            uboData.uvScale = texInfo.scale;
+        }
+        else
+        {
+            uboData.uvOffset = glm::vec2(0.0f, 0.0f);
+            uboData.uvScale = glm::vec2(1.0f, 1.0f);
+        }
+
         resourceManager->UpdatePerObjectUBO(m_uboSlot, uboData);
     }
     else
@@ -71,6 +84,8 @@ void Object::UpdateUBO(ResourceManager* resourceManager)
         uboData.roughness = 0.5f;
         uboData.ao = 1.0f;
         uboData.normalStrength = 1.0f;
+        uboData.uvOffset = glm::vec2(0.0f, 0.0f);
+        uboData.uvScale = glm::vec2(1.0f, 1.0f);
         resourceManager->UpdatePerObjectUBO(m_uboSlot, uboData);
     }
 }

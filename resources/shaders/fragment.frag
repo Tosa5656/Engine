@@ -2,10 +2,11 @@
 
 layout(location = 0) in vec3 fragNormal;
 layout(location = 1) in vec2 fragUV;
-layout(location = 2) in vec3 fragAlbedo;
-layout(location = 3) in float fragMetallic;
-layout(location = 4) in float fragRoughness;
-layout(location = 5) in float fragAO;
+layout(location = 2) in vec2 fragUVAtlas;
+layout(location = 3) in vec3 fragAlbedo;
+layout(location = 4) in float fragMetallic;
+layout(location = 5) in float fragRoughness;
+layout(location = 6) in float fragAO;
 
 layout(set = 2, binding = 0) uniform sampler2D texSampler;
 
@@ -13,7 +14,7 @@ layout(location = 0) out vec4 outColor;
 
 void main()
 {
-    vec3 albedo = texture(texSampler, fragUV).rgb;
+    vec3 albedo = texture(texSampler, fragUVAtlas).rgb;
     if (length(albedo) < 0.001)
         albedo = fragAlbedo;
 

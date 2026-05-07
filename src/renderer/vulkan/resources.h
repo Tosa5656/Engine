@@ -27,6 +27,8 @@ struct PerObjectUBO
     float roughness;
     float ao;
     float normalStrength;
+    alignas(8) glm::vec2 uvOffset;
+    glm::vec2 uvScale;
 };
 
 class ResourceManager
