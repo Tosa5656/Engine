@@ -31,7 +31,7 @@ void Renderer::Init(GLFWwindow *window, Input* input)
     m_swapChain.CreateImageViews(&m_device);
     m_descriptorManager.Init(&m_device, &m_swapChain, &m_resourceManager, 256);
     m_descriptorManager.CreateDescriptorSetLayout();
-    m_pipelineManager.Create(&m_device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetDescriptorSetLayout(1), m_descriptorManager.GetTextureSetLayout(), m_descriptorManager.GetNormalMapSetLayout());
+    m_pipelineManager.Create(&m_device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetDescriptorSetLayout(1), m_descriptorManager.GetTextureSetLayout(), m_descriptorManager.GetNormalMapSetLayout(), m_descriptorManager.GetHeightMapSetLayout());
     m_commandBufferManager.Init(m_device.GetDevice(), m_device.GetGraphicsQueueFamilyIndex(&m_surface));
     m_resourceManager.CreateUniformBuffers();
     m_resourceManager.CreateObjectBuffer(4);
@@ -54,8 +54,12 @@ void Renderer::Init(GLFWwindow *window, Input* input)
     m_normalMap.Init(&m_device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool());
     m_normalMap.Load("textures/NormalMap.png");
 
+    m_heightMap.Init(&m_device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool());
+    m_heightMap.Load("textures/HeightMap.png");
+
     m_material.SetTextureArray(&m_textureAtlas, 0);
     m_material.SetNormalMap(&m_normalMap);
+    m_material.SetHeightMap(&m_heightMap);
     m_material2.SetTexture(&m_singleTexture);
     m_material3.SetTexture(nullptr);
 
@@ -113,6 +117,11 @@ void Renderer::Init(GLFWwindow *window, Input* input)
     if (m_material.GetNormalMap())
     {
         m_material.SetNormalMapDescriptorSet(m_descriptorManager.CreateNormalMapDescriptorSet(m_material.GetNormalMap()));
+    }
+
+    if (m_material.GetHeightMap())
+    {
+        m_material.SetHeightMapDescriptorSet(m_descriptorManager.CreateHeightMapDescriptorSet(m_material.GetHeightMap()));
     }
 
     m_resourceManager.CreateComputeResultBuffer();
@@ -294,6 +303,17 @@ void Renderer::Render()
             }
             vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 3, 1, &normalMapDescriptorSet, 0, nullptr);
 
+            VkDescriptorSet heightMapDescriptorSet;
+            if (material && material->GetHeightMapDescriptorSet() != VK_NULL_HANDLE)
+            {
+                heightMapDescriptorSet = material->GetHeightMapDescriptorSet();
+            }
+            else
+            {
+                heightMapDescriptorSet = m_descriptorManager.GetNullHeightMapDescriptorSet();
+            }
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 4, 1, &heightMapDescriptorSet, 0, nullptr);
+
             obj->Draw(cmd, m_descriptorManager.GetPerObjectDescriptorSets()[0], m_resourceManager.GetObjectUBOStride());
         }
     }
@@ -410,7 +430,7 @@ void Renderer::Render()
         throw std::runtime_error("failed to present swap chain image!");
     }
 
-    float moveSpeed = 300.0f * m_deltaTime;
+    float moveSpeed = 100.0f * m_deltaTime;
     Camera* camera = m_scene.GetCamera();
     glm::vec3 forward = glm::normalize(camera->GetTarget() - camera->GetPosition());
     glm::vec3 right = glm::normalize(glm::cross(forward, camera->GetUp()));
@@ -488,6 +508,7 @@ void Renderer::Destroy()
 
     m_singleTexture.Cleanup();
     m_normalMap.Cleanup();
+    m_heightMap.Cleanup();
     m_textureAtlas.Cleanup();
 
     m_resourceManager.Cleanup();

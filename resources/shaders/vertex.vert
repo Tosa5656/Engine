@@ -14,11 +14,14 @@ layout(location = 5) out float fragRoughness;
 layout(location = 6) out float fragAO;
 layout(location = 7) out vec3 fragTangent;
 layout(location = 8) out vec3 fragBitangent;
+layout(location = 9) out vec3 fragWorldPos;
 
 layout(set = 0, binding = 0) uniform PerFrameUBO
 {
     mat4 view;
     mat4 proj;
+    vec3 cameraPos;
+    float padding;
 } perFrame;
 
 layout(set = 1, binding = 0) uniform PerObjectUBO
@@ -45,6 +48,7 @@ void main()
     fragMetallic = perObject.metallic;
     fragRoughness = perObject.roughness;
     fragAO = perObject.ao;
+    fragWorldPos = vec3(perObject.model * vec4(inPosition, 1.0));
 
     mat4 mvp = perFrame.proj * perFrame.view * perObject.model;
     gl_Position = mvp * vec4(inPosition, 1.0);

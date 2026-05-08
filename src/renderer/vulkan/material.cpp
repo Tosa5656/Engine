@@ -97,6 +97,11 @@ void Material::SetNormalMap(Texture* normalMap)
     m_normalMap = normalMap;
 }
 
+void Material::SetHeightMap(Texture* heightMap)
+{
+    m_heightMap = heightMap;
+}
+
 void Material::Init(Device* device, VmaAllocator allocator)
 {
     m_device = device;

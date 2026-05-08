@@ -27,6 +27,7 @@ public:
     void SetTexture(Texture* texture);
     void SetTextureArray(TextureArray* textureArray, uint32_t textureIndex);
     void SetNormalMap(Texture* normalMap);
+    void SetHeightMap(Texture* heightMap);
     void Init(Device* device, VmaAllocator allocator);
 
     glm::vec3 GetAlbedo() const;
@@ -37,6 +38,7 @@ public:
     Texture* GetTexture() const { return m_texture; }
     TextureArray* GetTextureArray() const { return m_textureArray; }
     Texture* GetNormalMap() const { return m_normalMap; }
+    Texture* GetHeightMap() const { return m_heightMap; }
     bool HasTexture() const { return m_texture != nullptr || m_textureArray != nullptr; }
     uint32_t GetTextureIndex() const { return m_textureIndex; }
 
@@ -46,6 +48,8 @@ public:
     VkDescriptorSet GetDescriptorSet() const { return m_textureDescriptorSet; }
     void SetNormalMapDescriptorSet(VkDescriptorSet descriptorSet) { m_normalMapDescriptorSet = descriptorSet; }
     VkDescriptorSet GetNormalMapDescriptorSet() const { return m_normalMapDescriptorSet; }
+    void SetHeightMapDescriptorSet(VkDescriptorSet descriptorSet) { m_heightMapDescriptorSet = descriptorSet; }
+    VkDescriptorSet GetHeightMapDescriptorSet() const { return m_heightMapDescriptorSet; }
 
 private:
     PerObjectUBO m_data;
@@ -53,8 +57,10 @@ private:
     TextureArray* m_textureArray = nullptr;
     uint32_t m_textureIndex = 0;
     Texture* m_normalMap = nullptr;
+    Texture* m_heightMap = nullptr;
     VkDescriptorSet m_textureDescriptorSet = VK_NULL_HANDLE;
     VkDescriptorSet m_normalMapDescriptorSet = VK_NULL_HANDLE;
+    VkDescriptorSet m_heightMapDescriptorSet = VK_NULL_HANDLE;
     Device* m_device = nullptr;
     VmaAllocator m_allocator = VK_NULL_HANDLE;
 };

@@ -106,6 +106,7 @@ private:
     TextureArray m_textureAtlas;
     Texture m_singleTexture;
     Texture m_normalMap;
+    Texture m_heightMap;
     Input* m_input;
 
     ComputePipeline m_computePipeline;
