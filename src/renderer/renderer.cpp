@@ -31,14 +31,40 @@ void Renderer::Init(GLFWwindow *window, Input* input)
     m_swapChain.CreateImageViews(&m_device);
     m_descriptorManager.Init(&m_device, &m_swapChain, &m_resourceManager, 256);
     m_descriptorManager.CreateDescriptorSetLayout();
-    m_pipelineManager.Create(&m_device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetDescriptorSetLayout(1));
+    m_pipelineManager.Create(&m_device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetDescriptorSetLayout(1), m_descriptorManager.GetTextureSetLayout(), m_descriptorManager.GetNormalMapSetLayout(), m_descriptorManager.GetHeightMapSetLayout());
     m_commandBufferManager.Init(m_device.GetDevice(), m_device.GetGraphicsQueueFamilyIndex(&m_surface));
     m_resourceManager.CreateUniformBuffers();
     m_resourceManager.CreateObjectBuffer(4);
 
-    m_material = Material(glm::vec3(1.0f, 0.0f, 0.0f), 1.0f, 1.0f);
-    m_material2 = Material(glm::vec3(0.0f, 1.0f, 0.0f), 1.0f, 1.0f);
-    m_material3 = Material(glm::vec3(0.0f, 0.0f, 1.0f), 1.0f, 1.0f);
+    m_material.SetAlbedo(glm::vec3(1.0f, 1.0f, 1.0f));
+    m_material2.SetAlbedo(glm::vec3(1.0f, 1.0f, 1.0f));
+    m_material3.SetAlbedo(glm::vec3(1.0f, 0.0f, 0.0f));
+
+    m_material.Init(&m_device, m_resourceManager.GetAllocator());
+    m_material2.Init(&m_device, m_resourceManager.GetAllocator());
+    m_material3.Init(&m_device, m_resourceManager.GetAllocator());
+
+    m_textureAtlas.Init(&m_device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool(), 16);
+    m_textureAtlas.AddTexture("textures/BrickWall23_1K_BaseColor.png");
+    m_textureAtlas.Build();
+
+    m_singleTexture.Init(&m_device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool());
+    m_singleTexture.Load("textures/BrickWall23_1K_BaseColor.png");
+
+    m_normalMap.Init(&m_device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool());
+    m_normalMap.Load("textures/BrickWall23_1K_Normal.png");
+
+    m_heightMap.Init(&m_device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool());
+    m_heightMap.Load("textures/BrickWall23_1K_Height.png");
+
+    m_material.SetTextureArray(&m_textureAtlas, 0);
+    m_material.SetNormalMap(&m_normalMap);
+    m_material.SetHeightMap(&m_heightMap);
+    m_material.SetParallaxMode(ParallaxMode::ReliefMapping);
+    m_material.SetParallaxScale(0.05f);
+    m_material.SetParallaxIterations(32);
+    m_material2.SetTexture(&m_singleTexture);
+    m_material3.SetTexture(nullptr);
 
     m_scene.Init();
 
@@ -46,6 +72,7 @@ void Renderer::Init(GLFWwindow *window, Input* input)
     obj1->Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), &m_resourceManager, "models/cube.obj");
     obj1->SetMaterial(&m_material);
     obj1->GetTransform()->SetPosition(glm::vec3(0.0f, 0.0f, 0.0f));
+
     m_scene.AddObject(obj1);
 
     Object* obj2 = new Object();
@@ -65,6 +92,50 @@ void Renderer::Init(GLFWwindow *window, Input* input)
 
     m_descriptorManager.CreateDescriptorPool();
     m_descriptorManager.CreateDescriptorSets();
+
+    if (m_material.HasTexture())
+    {
+        if (m_material.GetTextureArray())
+            m_material.SetDescriptorSet(m_descriptorManager.CreateTextureDescriptorSet(m_material.GetTextureArray()));
+        else if (m_material.GetTexture())
+            m_material.SetDescriptorSet(m_descriptorManager.CreateTextureDescriptorSet(m_material.GetTexture()));
+    }
+
+    if (m_material2.HasTexture())
+    {
+        if (m_material2.GetTextureArray())
+            m_material2.SetDescriptorSet(m_descriptorManager.CreateTextureDescriptorSet(m_material2.GetTextureArray()));
+        else if (m_material2.GetTexture())
+            m_material2.SetDescriptorSet(m_descriptorManager.CreateTextureDescriptorSet(m_material2.GetTexture()));
+    }
+
+    if (m_material3.HasTexture())
+    {
+        if (m_material3.GetTextureArray())
+            m_material3.SetDescriptorSet(m_descriptorManager.CreateTextureDescriptorSet(m_material3.GetTextureArray()));
+        else if (m_material3.GetTexture())
+            m_material3.SetDescriptorSet(m_descriptorManager.CreateTextureDescriptorSet(m_material3.GetTexture()));
+    }
+
+    if (m_material.GetNormalMap())
+    {
+        m_material.SetNormalMapDescriptorSet(m_descriptorManager.CreateNormalMapDescriptorSet(m_material.GetNormalMap()));
+    }
+
+    if (m_material2.GetNormalMap())
+    {
+        m_material2.SetNormalMapDescriptorSet(m_descriptorManager.CreateNormalMapDescriptorSet(m_material2.GetNormalMap()));
+    }
+
+    if (m_material.GetHeightMap())
+    {
+        m_material.SetHeightMapDescriptorSet(m_descriptorManager.CreateHeightMapDescriptorSet(m_material.GetHeightMap()));
+    }
+
+    if (m_material2.GetHeightMap())
+    {
+        m_material2.SetHeightMapDescriptorSet(m_descriptorManager.CreateHeightMapDescriptorSet(m_material2.GetHeightMap()));
+    }
 
     m_resourceManager.CreateComputeResultBuffer();
     m_descriptorManager.CreateComputeDescriptorSetLayout();
@@ -225,6 +296,41 @@ void Renderer::Render()
         {
             uint32_t dynamicOffset = obj->GetUBOSlot() * m_resourceManager.GetObjectUBOStride();
             vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 1, 1, m_descriptorManager.GetPerObjectDescriptorSets().data(), 1, &dynamicOffset);
+
+            Material* material = obj->GetMaterial();
+            VkDescriptorSet textureDescriptorSet;
+            if (material && material->HasTexture() && material->GetDescriptorSet() != VK_NULL_HANDLE)
+            {
+                textureDescriptorSet = material->GetDescriptorSet();
+            }
+            else
+            {
+                textureDescriptorSet = m_descriptorManager.GetNullTextureDescriptorSet();
+            }
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 2, 1, &textureDescriptorSet, 0, nullptr);
+
+            VkDescriptorSet normalMapDescriptorSet;
+            if (material && material->GetNormalMapDescriptorSet() != VK_NULL_HANDLE)
+            {
+                normalMapDescriptorSet = material->GetNormalMapDescriptorSet();
+            }
+            else
+            {
+                normalMapDescriptorSet = m_descriptorManager.GetNullNormalMapDescriptorSet();
+            }
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 3, 1, &normalMapDescriptorSet, 0, nullptr);
+
+            VkDescriptorSet heightMapDescriptorSet;
+            if (material && material->GetHeightMapDescriptorSet() != VK_NULL_HANDLE)
+            {
+                heightMapDescriptorSet = material->GetHeightMapDescriptorSet();
+            }
+            else
+            {
+                heightMapDescriptorSet = m_descriptorManager.GetNullHeightMapDescriptorSet();
+            }
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 4, 1, &heightMapDescriptorSet, 0, nullptr);
+
             obj->Draw(cmd, m_descriptorManager.GetPerObjectDescriptorSets()[0], m_resourceManager.GetObjectUBOStride());
         }
     }
@@ -343,7 +449,7 @@ void Renderer::Render()
         throw std::runtime_error("failed to present swap chain image!");
     }
 
-    float moveSpeed = 300.0f * m_deltaTime;
+    float moveSpeed = 100.0f * m_deltaTime;
     Camera* camera = m_scene.GetCamera();
     glm::vec3 forward = glm::normalize(camera->GetTarget() - camera->GetPosition());
     glm::vec3 right = glm::normalize(glm::cross(forward, camera->GetUp()));
@@ -420,6 +526,11 @@ void Renderer::Destroy()
     m_mesh.Destroy();
 
     m_commandBufferManager.Shutdown();
+
+    m_singleTexture.Cleanup();
+    m_normalMap.Cleanup();
+    m_heightMap.Cleanup();
+    m_textureAtlas.Cleanup();
 
     m_resourceManager.Cleanup();
 

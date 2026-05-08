@@ -96,6 +96,7 @@ void ResourceManager::UpdatePerFrameUBO(uint32_t currentImage, Camera& camera)
     PerFrameUBO ubo{};
     ubo.view = camera.GetViewMatrix();
     ubo.proj = camera.GetProjectionMatrix();
+    ubo.cameraPos = camera.GetPosition();
 
     void* data;
     vmaMapMemory(m_allocator, m_perFrameAllocations[currentImage], &data);

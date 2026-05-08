@@ -28,6 +28,9 @@ struct MeshVertexHash
         hash = hash * 31 + std::hash<float>{}(vertex.normal.z);
         hash = hash * 31 + std::hash<float>{}(vertex.uv.x);
         hash = hash * 31 + std::hash<float>{}(vertex.uv.y);
+        hash = hash * 31 + std::hash<float>{}(vertex.tangent.x);
+        hash = hash * 31 + std::hash<float>{}(vertex.tangent.y);
+        hash = hash * 31 + std::hash<float>{}(vertex.tangent.z);
         return hash;
     }
 };
@@ -216,10 +219,60 @@ public:
             return false;
         }
 
+        ComputeTangents(vertices, indices);
+
         return true;
     }
 
 private:
+    static void ComputeTangents(std::vector<MeshVertex>& vertices, const std::vector<MeshIndex>& indices)
+    {
+        std::vector<glm::vec3> tangents(vertices.size(), glm::vec3(0.0f));
+
+        for (size_t i = 0; i < indices.size(); i += 3)
+        {
+            uint32_t i0 = indices[i].value;
+            uint32_t i1 = indices[i + 1].value;
+            uint32_t i2 = indices[i + 2].value;
+
+            glm::vec3 pos0 = vertices[i0].pos;
+            glm::vec3 pos1 = vertices[i1].pos;
+            glm::vec3 pos2 = vertices[i2].pos;
+
+            glm::vec2 uv0 = vertices[i0].uv;
+            glm::vec2 uv1 = vertices[i1].uv;
+            glm::vec2 uv2 = vertices[i2].uv;
+
+            glm::vec3 deltaPos1 = pos1 - pos0;
+            glm::vec3 deltaPos2 = pos2 - pos0;
+
+            glm::vec2 deltaUV1 = uv1 - uv0;
+            glm::vec2 deltaUV2 = uv2 - uv0;
+
+            float r = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x);
+
+            glm::vec3 tangent;
+            tangent.x = (deltaPos1.x * deltaUV2.y - deltaPos2.x * deltaUV1.y) * r;
+            tangent.y = (deltaPos1.y * deltaUV2.y - deltaPos2.y * deltaUV1.y) * r;
+            tangent.z = (deltaPos1.z * deltaUV2.y - deltaPos2.z * deltaUV1.y) * r;
+
+            tangents[i0] += tangent;
+            tangents[i1] += tangent;
+            tangents[i2] += tangent;
+        }
+
+        for (size_t i = 0; i < vertices.size(); ++i)
+        {
+            glm::vec3 n = vertices[i].normal;
+            glm::vec3 t = tangents[i];
+
+            t = glm::normalize(t - n * glm::dot(n, t));
+
+            float w = (glm::dot(glm::cross(n, t), tangents[i]) < 0.0f) ? -1.0f : 1.0f;
+            vertices[i].tangent = t * w;
+        }
+    }
+
     static MeshVertex CreateVertex(const std::vector<glm::vec3>& positions, const std::vector<glm::vec2>& texCoords, const std::vector<glm::vec3>& normals, uint32_t posIdx, uint32_t texIdx, uint32_t normalIdx)
     {
         MeshVertex vertex;

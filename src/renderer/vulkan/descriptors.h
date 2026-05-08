@@ -11,6 +11,8 @@
 #include <renderer/vulkan/device.h>
 #include <renderer/vulkan/swapchain.h>
 #include <renderer/vulkan/resources.h>
+#include <renderer/vulkan/texture.h>
+#include <renderer/vulkan/texturearray.h>
 
 class DescriptorsManager
 {
@@ -33,6 +35,17 @@ public:
     std::vector<VkDescriptorSet> GetPerObjectDescriptorSets();
     VkDescriptorSetLayout GetComputeDescriptorSetLayout();
     VkDescriptorSet GetComputeDescriptorSet();
+    VkDescriptorSetLayout GetTextureSetLayout() const { return m_textureSetLayout; }
+    VkDescriptorSetLayout GetNormalMapSetLayout() const { return m_normalMapSetLayout; }
+    VkDescriptorSetLayout GetHeightMapSetLayout() const { return m_heightMapSetLayout; }
+    VkDescriptorSet GetNullTextureDescriptorSet() const { return m_nullTextureDescriptorSet; }
+    VkDescriptorSet GetNullNormalMapDescriptorSet() const { return m_nullNormalMapDescriptorSet; }
+    VkDescriptorSet GetNullHeightMapDescriptorSet() const { return m_nullHeightMapDescriptorSet; }
+
+    VkDescriptorSet CreateTextureDescriptorSet(Texture* texture);
+    VkDescriptorSet CreateTextureDescriptorSet(TextureArray* textureArray);
+    VkDescriptorSet CreateNormalMapDescriptorSet(Texture* texture);
+    VkDescriptorSet CreateHeightMapDescriptorSet(Texture* texture);
 
 private:
     Device* m_device;
@@ -45,5 +58,14 @@ private:
     VkDescriptorSetLayout m_perFrameSetLayout;
     VkDescriptorSetLayout m_perObjectSetLayout;
     VkDescriptorSetLayout m_computeSetLayout;
+    VkDescriptorSetLayout m_textureSetLayout;
+    VkDescriptorSetLayout m_normalMapSetLayout;
+    VkDescriptorSetLayout m_heightMapSetLayout;
+    VkDescriptorSet m_nullTextureDescriptorSet;
+    VkDescriptorSet m_nullNormalMapDescriptorSet;
+    VkDescriptorSet m_nullHeightMapDescriptorSet;
+    VkSampler m_dummySampler;
+    VkImageView m_dummyImageView;
+    VkDeviceMemory m_dummyImageMemory;
     VkDescriptorSet m_computeDescriptorSet;
 };

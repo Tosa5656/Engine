@@ -5,14 +5,14 @@
 ## v0.3.0 - Foundation
 
 ### Textures & Materials
-- [ ] 2D texture loading (PNG, JPG, TGA, DDS)
-- [ ] Texture descriptor sets and samplers
-- [ ] Texture array / atlas support
-- [ ] Mipmap generation
-- [ ] Texture filtering (nearest, linear, anisotropic)
-- [ ] Normal mapping (tangent space normals)
-- [ ] Parallax occlusion mapping (POM)
-- [ ] Relief mapping
+- [x] 2D texture loading
+- [x] Texture descriptor sets and samplers
+- [x] Mipmap generation
+- [x] Texture filtering 
+- [x] Texture array / atlas support
+- [x] Normal mapping (tangent space normals)
+- [x] Parallax occlusion mapping (POM)
+- [x] Relief mapping
 
 ### Architecture
 - [ ] ECS core (Entity, Component, System)
@@ -28,7 +28,7 @@
 ### Light
 - [ ] Point light (position, color, intensity, radius)
 - [ ] Directional light (direction, color, intensity)
-- [ ] Spot light (position, direction, cone angle, penumbra)
+- [ ] Spotlight (position, direction, cone angle, penumbra)
 - [ ] Light types enumeration and registry
 - [ ] Deferred shading G-buffer (position, normal, albedo, emissive)
 - [ ] Forward+ / tiled rendering fallback

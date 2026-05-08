@@ -10,7 +10,7 @@ int main()
         glfwPollEvents();
         window.Update();
 
-        if (window.GetInput()->IsPressed(KeyCode::Escape))
+        if (window.GetInput()->IsPressed(KeyCode::Space))
             window.GetInput()->SetCursorCaptured(false);
     }
 

@@ -1,7 +1,7 @@
 #include "descriptors.h"
 #include "resources.h"
 
-DescriptorsManager::DescriptorsManager() {}
+DescriptorsManager::DescriptorsManager() : m_dummySampler(VK_NULL_HANDLE), m_dummyImageView(VK_NULL_HANDLE), m_dummyImageMemory(VK_NULL_HANDLE), m_normalMapSetLayout(VK_NULL_HANDLE), m_nullNormalMapDescriptorSet(VK_NULL_HANDLE), m_heightMapSetLayout(VK_NULL_HANDLE), m_nullHeightMapDescriptorSet(VK_NULL_HANDLE) {}
 DescriptorsManager::~DescriptorsManager() {}
 
 void DescriptorsManager::Init(Device* device, SwapChain* swapChain, ResourceManager* resourceManager, uint32_t maxObjects)
@@ -43,23 +43,67 @@ void DescriptorsManager::Cleanup()
         vkDestroyDescriptorSetLayout(device, m_computeSetLayout, nullptr);
         m_computeSetLayout = VK_NULL_HANDLE;
     }
+
+    if (m_textureSetLayout != VK_NULL_HANDLE)
+    {
+        vkDestroyDescriptorSetLayout(device, m_textureSetLayout, nullptr);
+        m_textureSetLayout = VK_NULL_HANDLE;
+    }
+
+    if (m_normalMapSetLayout != VK_NULL_HANDLE)
+    {
+        vkDestroyDescriptorSetLayout(device, m_normalMapSetLayout, nullptr);
+        m_normalMapSetLayout = VK_NULL_HANDLE;
+    }
+
+    if (m_heightMapSetLayout != VK_NULL_HANDLE)
+    {
+        vkDestroyDescriptorSetLayout(device, m_heightMapSetLayout, nullptr);
+        m_heightMapSetLayout = VK_NULL_HANDLE;
+    }
+
+    if (m_dummySampler != VK_NULL_HANDLE)
+    {
+        vkDestroySampler(device, m_dummySampler, nullptr);
+        m_dummySampler = VK_NULL_HANDLE;
+    }
+
+    if (m_dummyImageView != VK_NULL_HANDLE)
+    {
+        vkDestroyImageView(device, m_dummyImageView, nullptr);
+        m_dummyImageView = VK_NULL_HANDLE;
+    }
+
+    if (m_dummyImageMemory != VK_NULL_HANDLE)
+    {
+        vkFreeMemory(device, m_dummyImageMemory, nullptr);
+    }
+    m_dummyImageMemory = VK_NULL_HANDLE;
 }
 
 void DescriptorsManager::CreateDescriptorPool()
 {
-    std::vector<VkDescriptorPoolSize> poolSizes(3);
+    std::vector<VkDescriptorPoolSize> poolSizes(7);
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSizes[0].descriptorCount = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size());
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
     poolSizes[1].descriptorCount = 256;
     poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     poolSizes[2].descriptorCount = 1;
+    poolSizes[3].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[3].descriptorCount = 256;
+    poolSizes[4].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[4].descriptorCount = 256;
+    poolSizes[5].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[5].descriptorCount = 256;
+    poolSizes[6].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[6].descriptorCount = 1;
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
     poolInfo.pPoolSizes = poolSizes.data();
-    poolInfo.maxSets = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size()) + 2;
+    poolInfo.maxSets = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size()) + 2 + 256 + 256 + 256 + 1;
 
     if (vkCreateDescriptorPool(m_device->GetDevice(), &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS)
     {
@@ -136,6 +180,142 @@ void DescriptorsManager::CreateDescriptorSets()
 
         vkUpdateDescriptorSets(m_device->GetDevice(), 1, &descriptorWrite, 0, nullptr);
     }
+
+    VkDescriptorSetAllocateInfo nullAllocInfo{};
+    nullAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    nullAllocInfo.descriptorPool = m_descriptorPool;
+    nullAllocInfo.descriptorSetCount = 1;
+    nullAllocInfo.pSetLayouts = &m_textureSetLayout;
+
+    if (vkAllocateDescriptorSets(m_device->GetDevice(), &nullAllocInfo, &m_nullTextureDescriptorSet) != VK_SUCCESS)
+        throw std::runtime_error("failed to allocate null texture descriptor set!");
+
+    VkSamplerCreateInfo samplerInfo{};
+    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerInfo.magFilter = VK_FILTER_LINEAR;
+    samplerInfo.minFilter = VK_FILTER_LINEAR;
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.anisotropyEnable = VK_FALSE;
+
+    if (vkCreateSampler(m_device->GetDevice(), &samplerInfo, nullptr, &m_dummySampler) != VK_SUCCESS)
+        throw std::runtime_error("failed to create dummy sampler!");
+
+    VkImage dummyImage;
+    VkImageCreateInfo imageInfo{};
+    imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageInfo.extent.width = 1;
+    imageInfo.extent.height = 1;
+    imageInfo.extent.depth = 1;
+    imageInfo.mipLevels = 1;
+    imageInfo.arrayLayers = 1;
+    imageInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+    imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT;
+    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    if (vkCreateImage(m_device->GetDevice(), &imageInfo, nullptr, &dummyImage) != VK_SUCCESS)
+        throw std::runtime_error("failed to create dummy image!");
+
+    VkMemoryRequirements memRequirements;
+    vkGetImageMemoryRequirements(m_device->GetDevice(), dummyImage, &memRequirements);
+
+    VkMemoryAllocateInfo memoryAllocInfo{};
+    memoryAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    memoryAllocInfo.allocationSize = memRequirements.size;
+    memoryAllocInfo.memoryTypeIndex = 0;
+
+    VkDeviceMemory dummyMemory;
+    if (vkAllocateMemory(m_device->GetDevice(), &memoryAllocInfo, nullptr, &dummyMemory) != VK_SUCCESS)
+        throw std::runtime_error("failed to allocate dummy image memory!");
+
+    if (vkBindImageMemory(m_device->GetDevice(), dummyImage, dummyMemory, 0) != VK_SUCCESS)
+        throw std::runtime_error("failed to bind dummy image memory!");
+
+    m_dummyImageMemory = dummyMemory;
+
+    VkImageViewCreateInfo viewInfo{};
+    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewInfo.image = dummyImage;
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    viewInfo.subresourceRange.baseMipLevel = 0;
+    viewInfo.subresourceRange.levelCount = 1;
+    viewInfo.subresourceRange.baseArrayLayer = 0;
+    viewInfo.subresourceRange.layerCount = 1;
+
+    if (vkCreateImageView(m_device->GetDevice(), &viewInfo, nullptr, &m_dummyImageView) != VK_SUCCESS)
+        throw std::runtime_error("failed to create dummy image view!");
+
+    vkDestroyImage(m_device->GetDevice(), dummyImage, nullptr);
+
+    VkDescriptorImageInfo nullImageInfo{};
+    nullImageInfo.sampler = m_dummySampler;
+    nullImageInfo.imageView = m_dummyImageView;
+    nullImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkWriteDescriptorSet nullDescriptorWrite{};
+    nullDescriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    nullDescriptorWrite.dstSet = m_nullTextureDescriptorSet;
+    nullDescriptorWrite.dstBinding = 0;
+    nullDescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    nullDescriptorWrite.descriptorCount = 1;
+    nullDescriptorWrite.pImageInfo = &nullImageInfo;
+
+    vkUpdateDescriptorSets(m_device->GetDevice(), 1, &nullDescriptorWrite, 0, nullptr);
+
+    VkDescriptorSetAllocateInfo nullNormalAllocInfo{};
+    nullNormalAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    nullNormalAllocInfo.descriptorPool = m_descriptorPool;
+    nullNormalAllocInfo.descriptorSetCount = 1;
+    nullNormalAllocInfo.pSetLayouts = &m_normalMapSetLayout;
+
+    if (vkAllocateDescriptorSets(m_device->GetDevice(), &nullNormalAllocInfo, &m_nullNormalMapDescriptorSet) != VK_SUCCESS)
+        throw std::runtime_error("failed to allocate null normal map descriptor set!");
+
+    VkDescriptorImageInfo nullNormalImageInfo{};
+    nullNormalImageInfo.sampler = m_dummySampler;
+    nullNormalImageInfo.imageView = m_dummyImageView;
+    nullNormalImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkWriteDescriptorSet nullNormalDescriptorWrite{};
+    nullNormalDescriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    nullNormalDescriptorWrite.dstSet = m_nullNormalMapDescriptorSet;
+    nullNormalDescriptorWrite.dstBinding = 0;
+    nullNormalDescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    nullNormalDescriptorWrite.descriptorCount = 1;
+    nullNormalDescriptorWrite.pImageInfo = &nullNormalImageInfo;
+
+    vkUpdateDescriptorSets(m_device->GetDevice(), 1, &nullNormalDescriptorWrite, 0, nullptr);
+
+    VkDescriptorSetAllocateInfo nullHeightAllocInfo{};
+    nullHeightAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    nullHeightAllocInfo.descriptorPool = m_descriptorPool;
+    nullHeightAllocInfo.descriptorSetCount = 1;
+    nullHeightAllocInfo.pSetLayouts = &m_heightMapSetLayout;
+
+    if (vkAllocateDescriptorSets(m_device->GetDevice(), &nullHeightAllocInfo, &m_nullHeightMapDescriptorSet) != VK_SUCCESS)
+        throw std::runtime_error("failed to allocate null height map descriptor set!");
+
+    VkDescriptorImageInfo nullHeightImageInfo{};
+    nullHeightImageInfo.sampler = m_dummySampler;
+    nullHeightImageInfo.imageView = m_dummyImageView;
+    nullHeightImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkWriteDescriptorSet nullHeightDescriptorWrite{};
+    nullHeightDescriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    nullHeightDescriptorWrite.dstSet = m_nullHeightMapDescriptorSet;
+    nullHeightDescriptorWrite.dstBinding = 0;
+    nullHeightDescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    nullHeightDescriptorWrite.descriptorCount = 1;
+    nullHeightDescriptorWrite.pImageInfo = &nullHeightImageInfo;
+
+    vkUpdateDescriptorSets(m_device->GetDevice(), 1, &nullHeightDescriptorWrite, 0, nullptr);
 }
 
 void DescriptorsManager::CreateDescriptorSetLayout()
@@ -170,6 +350,54 @@ void DescriptorsManager::CreateDescriptorSetLayout()
     if (vkCreateDescriptorSetLayout(m_device->GetDevice(), &perObjectLayoutInfo, nullptr, &m_perObjectSetLayout) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to create per-object descriptor set layout!");
+    }
+
+    VkDescriptorSetLayoutBinding textureBinding{};
+    textureBinding.binding = 0;
+    textureBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    textureBinding.descriptorCount = 1;
+    textureBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo textureLayoutInfo{};
+    textureLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    textureLayoutInfo.bindingCount = 1;
+    textureLayoutInfo.pBindings = &textureBinding;
+
+    if (vkCreateDescriptorSetLayout(m_device->GetDevice(), &textureLayoutInfo, nullptr, &m_textureSetLayout) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create texture descriptor set layout!");
+    }
+
+    VkDescriptorSetLayoutBinding normalMapBinding{};
+    normalMapBinding.binding = 0;
+    normalMapBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    normalMapBinding.descriptorCount = 1;
+    normalMapBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo normalMapLayoutInfo{};
+    normalMapLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    normalMapLayoutInfo.bindingCount = 1;
+    normalMapLayoutInfo.pBindings = &normalMapBinding;
+
+    if (vkCreateDescriptorSetLayout(m_device->GetDevice(), &normalMapLayoutInfo, nullptr, &m_normalMapSetLayout) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create normal map descriptor set layout!");
+    }
+
+    VkDescriptorSetLayoutBinding heightMapBinding{};
+    heightMapBinding.binding = 0;
+    heightMapBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    heightMapBinding.descriptorCount = 1;
+    heightMapBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo heightMapLayoutInfo{};
+    heightMapLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    heightMapLayoutInfo.bindingCount = 1;
+    heightMapLayoutInfo.pBindings = &heightMapBinding;
+
+    if (vkCreateDescriptorSetLayout(m_device->GetDevice(), &heightMapLayoutInfo, nullptr, &m_heightMapSetLayout) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create height map descriptor set layout!");
     }
 }
 
@@ -248,4 +476,128 @@ VkDescriptorSetLayout DescriptorsManager::GetComputeDescriptorSetLayout()
 VkDescriptorSet DescriptorsManager::GetComputeDescriptorSet()
 {
     return m_computeDescriptorSet;
+}
+
+VkDescriptorSet DescriptorsManager::CreateTextureDescriptorSet(Texture* texture)
+{
+    VkDescriptorSet descriptorSet;
+
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = m_descriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = &m_textureSetLayout;
+
+    if (vkAllocateDescriptorSets(m_device->GetDevice(), &allocInfo, &descriptorSet) != VK_SUCCESS)
+        throw std::runtime_error("failed to allocate texture descriptor set!");
+
+    VkDescriptorImageInfo imageInfo{};
+    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageInfo.imageView = texture->GetImageView();
+    imageInfo.sampler = texture->GetSampler();
+
+    VkWriteDescriptorSet descriptorWrite{};
+    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrite.dstSet = descriptorSet;
+    descriptorWrite.dstBinding = 0;
+    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    descriptorWrite.descriptorCount = 1;
+    descriptorWrite.pImageInfo = &imageInfo;
+
+vkUpdateDescriptorSets(m_device->GetDevice(), 1, &descriptorWrite, 0, nullptr);
+
+    return descriptorSet;
+}
+
+VkDescriptorSet DescriptorsManager::CreateHeightMapDescriptorSet(Texture* texture)
+{
+    VkDescriptorSet descriptorSet;
+
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = m_descriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = &m_heightMapSetLayout;
+
+    if (vkAllocateDescriptorSets(m_device->GetDevice(), &allocInfo, &descriptorSet) != VK_SUCCESS)
+        throw std::runtime_error("failed to allocate height map descriptor set!");
+
+    VkDescriptorImageInfo imageInfo{};
+    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageInfo.imageView = texture->GetImageView();
+    imageInfo.sampler = texture->GetSampler();
+
+    VkWriteDescriptorSet descriptorWrite{};
+    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrite.dstSet = descriptorSet;
+    descriptorWrite.dstBinding = 0;
+    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    descriptorWrite.descriptorCount = 1;
+    descriptorWrite.pImageInfo = &imageInfo;
+
+    vkUpdateDescriptorSets(m_device->GetDevice(), 1, &descriptorWrite, 0, nullptr);
+
+    return descriptorSet;
+}
+
+VkDescriptorSet DescriptorsManager::CreateNormalMapDescriptorSet(Texture* texture)
+{
+    VkDescriptorSet descriptorSet;
+
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = m_descriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = &m_normalMapSetLayout;
+
+    if (vkAllocateDescriptorSets(m_device->GetDevice(), &allocInfo, &descriptorSet) != VK_SUCCESS)
+        throw std::runtime_error("failed to allocate normal map descriptor set!");
+
+    VkDescriptorImageInfo imageInfo{};
+    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageInfo.imageView = texture->GetImageView();
+    imageInfo.sampler = texture->GetSampler();
+
+    VkWriteDescriptorSet descriptorWrite{};
+    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrite.dstSet = descriptorSet;
+    descriptorWrite.dstBinding = 0;
+    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    descriptorWrite.descriptorCount = 1;
+    descriptorWrite.pImageInfo = &imageInfo;
+
+    vkUpdateDescriptorSets(m_device->GetDevice(), 1, &descriptorWrite, 0, nullptr);
+
+    return descriptorSet;
+}
+
+VkDescriptorSet DescriptorsManager::CreateTextureDescriptorSet(TextureArray* textureArray)
+{
+    VkDescriptorSet descriptorSet;
+
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = m_descriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = &m_textureSetLayout;
+
+    if (vkAllocateDescriptorSets(m_device->GetDevice(), &allocInfo, &descriptorSet) != VK_SUCCESS)
+        throw std::runtime_error("failed to allocate texture descriptor set!");
+
+    VkDescriptorImageInfo imageInfo{};
+    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageInfo.imageView = textureArray->GetImageView();
+    imageInfo.sampler = textureArray->GetSampler();
+
+    VkWriteDescriptorSet descriptorWrite{};
+    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrite.dstSet = descriptorSet;
+    descriptorWrite.dstBinding = 0;
+    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    descriptorWrite.descriptorCount = 1;
+    descriptorWrite.pImageInfo = &imageInfo;
+
+    vkUpdateDescriptorSets(m_device->GetDevice(), 1, &descriptorWrite, 0, nullptr);
+
+    return descriptorSet;
 }

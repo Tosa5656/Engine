@@ -17,6 +17,14 @@ struct PerFrameUBO
 {
     alignas(16) glm::mat4 view;
     alignas(16) glm::mat4 proj;
+    alignas(16) glm::vec3 cameraPos;
+    float padding;
+};
+
+enum ParallaxMode : int
+{
+    ParallaxOcclusionMapping = 0,
+    ReliefMapping = 1
 };
 
 struct PerObjectUBO
@@ -27,6 +35,11 @@ struct PerObjectUBO
     float roughness;
     float ao;
     float normalStrength;
+    alignas(8) glm::vec2 uvOffset;
+    glm::vec2 uvScale;
+    int parallaxMode;
+    float parallaxScale;
+    int parallaxIterations;
 };
 
 class ResourceManager

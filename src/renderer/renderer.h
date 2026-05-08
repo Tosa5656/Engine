@@ -33,6 +33,8 @@
 #include <renderer/vulkan/camera.h>
 #include <renderer/vulkan/computepipeline.h>
 #include <renderer/vulkan/scene.h>
+#include <renderer/vulkan/texture.h>
+#include <renderer/vulkan/texturearray.h>
 
 #include <utils/input/input.h>
 #include <gui-debug/imgui/imgui.h>
@@ -102,6 +104,10 @@ private:
     Material m_material;
     Material m_material2;
     Material m_material3;
+    TextureArray m_textureAtlas;
+    Texture m_singleTexture;
+    Texture m_normalMap;
+    Texture m_heightMap;
     Input* m_input;
 
     ComputePipeline m_computePipeline;
