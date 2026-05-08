@@ -37,6 +37,7 @@
 #include <renderer/vulkan/texturearray.h>
 
 #include <utils/input/input.h>
+#include <gui-debug/imgui/imgui.h>
 
 static bool is_glfw_initialized = false;
 
@@ -110,6 +111,7 @@ private:
     Input* m_input;
 
     ComputePipeline m_computePipeline;
+    GUI m_gui;
     bool m_computeResultPrinted = false;
 
     std::array<VkSemaphore, MAX_FRAMES_IN_FLIGHT> m_imageAvailableSemaphores;

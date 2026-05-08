@@ -6,6 +6,8 @@
 
 #include <renderer/renderer.h>
 
+#include <utils/input/input.h>
+
 class Window
 {
 public:
@@ -29,7 +31,7 @@ private:
     void Init();
 
     static void FramebufferResizeCallback(GLFWwindow* window, int width, int height);
-    static void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
+    static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
 
     GLFWwindow* m_window;
     bool m_windowClosed;
