@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 4.0)
 
 set(PROJECT_NAME Singularity)
 project(${PROJECT_NAME}
-        VERSION 0.2.0
+        VERSION 0.3.0
         DESCRIPTION "Singularity Game Engine"
         LANGUAGES CXX)
 

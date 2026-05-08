@@ -10,9 +10,9 @@
 - [x] Mipmap generation
 - [x] Texture filtering 
 - [x] Texture array / atlas support
-- [ ] Normal mapping (tangent space normals)
-- [ ] Parallax occlusion mapping (POM)
-- [ ] Relief mapping
+- [x] Normal mapping (tangent space normals)
+- [x] Parallax occlusion mapping (POM)
+- [x] Relief mapping
 
 ### Architecture
 - [ ] ECS core (Entity, Component, System)

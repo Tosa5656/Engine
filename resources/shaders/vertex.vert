@@ -34,6 +34,9 @@ layout(set = 1, binding = 0) uniform PerObjectUBO
     float normalStrength;
     vec2 uvOffset;
     vec2 uvScale;
+    int parallaxMode;
+    float parallaxScale;
+    int parallaxIterations;
 } perObject;
 
 void main()

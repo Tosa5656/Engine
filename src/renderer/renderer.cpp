@@ -45,21 +45,24 @@ void Renderer::Init(GLFWwindow *window, Input* input)
     m_material3.Init(&m_device, m_resourceManager.GetAllocator());
 
     m_textureAtlas.Init(&m_device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool(), 16);
-    m_textureAtlas.AddTexture("textures/brickwall.jpg");
+    m_textureAtlas.AddTexture("textures/BrickWall23_1K_BaseColor.png");
     m_textureAtlas.Build();
 
     m_singleTexture.Init(&m_device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool());
-    m_singleTexture.Load("textures/brickwall.jpg");
+    m_singleTexture.Load("textures/BrickWall23_1K_BaseColor.png");
 
     m_normalMap.Init(&m_device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool());
-    m_normalMap.Load("textures/NormalMap.png");
+    m_normalMap.Load("textures/BrickWall23_1K_Normal.png");
 
     m_heightMap.Init(&m_device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool());
-    m_heightMap.Load("textures/HeightMap.png");
+    m_heightMap.Load("textures/BrickWall23_1K_Height.png");
 
     m_material.SetTextureArray(&m_textureAtlas, 0);
     m_material.SetNormalMap(&m_normalMap);
     m_material.SetHeightMap(&m_heightMap);
+    m_material.SetParallaxMode(ParallaxMode::ReliefMapping);
+    m_material.SetParallaxScale(0.05f);
+    m_material.SetParallaxIterations(32);
     m_material2.SetTexture(&m_singleTexture);
     m_material3.SetTexture(nullptr);
 
@@ -119,9 +122,19 @@ void Renderer::Init(GLFWwindow *window, Input* input)
         m_material.SetNormalMapDescriptorSet(m_descriptorManager.CreateNormalMapDescriptorSet(m_material.GetNormalMap()));
     }
 
+    if (m_material2.GetNormalMap())
+    {
+        m_material2.SetNormalMapDescriptorSet(m_descriptorManager.CreateNormalMapDescriptorSet(m_material2.GetNormalMap()));
+    }
+
     if (m_material.GetHeightMap())
     {
         m_material.SetHeightMapDescriptorSet(m_descriptorManager.CreateHeightMapDescriptorSet(m_material.GetHeightMap()));
+    }
+
+    if (m_material2.GetHeightMap())
+    {
+        m_material2.SetHeightMapDescriptorSet(m_descriptorManager.CreateHeightMapDescriptorSet(m_material2.GetHeightMap()));
     }
 
     m_resourceManager.CreateComputeResultBuffer();

@@ -7,6 +7,7 @@
 #include <renderer/vulkan/resources.h>
 #include <renderer/vulkan/texture.h>
 #include <renderer/vulkan/texturearray.h>
+#include <cstdint>
 
 class Device;
 
@@ -28,6 +29,9 @@ public:
     void SetTextureArray(TextureArray* textureArray, uint32_t textureIndex);
     void SetNormalMap(Texture* normalMap);
     void SetHeightMap(Texture* heightMap);
+    void SetParallaxMode(ParallaxMode mode);
+    void SetParallaxScale(float scale);
+    void SetParallaxIterations(int iterations);
     void Init(Device* device, VmaAllocator allocator);
 
     glm::vec3 GetAlbedo() const;
@@ -35,6 +39,9 @@ public:
     float GetRoughness() const;
     float GetAO() const;
     float GetNormalStrength() const;
+    ParallaxMode GetParallaxMode() const { return m_parallaxMode; }
+    float GetParallaxScale() const { return m_parallaxScale; }
+    int GetParallaxIterations() const { return m_parallaxIterations; }
     Texture* GetTexture() const { return m_texture; }
     TextureArray* GetTextureArray() const { return m_textureArray; }
     Texture* GetNormalMap() const { return m_normalMap; }
@@ -63,4 +70,7 @@ private:
     VkDescriptorSet m_heightMapDescriptorSet = VK_NULL_HANDLE;
     Device* m_device = nullptr;
     VmaAllocator m_allocator = VK_NULL_HANDLE;
+    ParallaxMode m_parallaxMode = ParallaxMode::ReliefMapping;
+    float m_parallaxScale = 0.1f;
+    int m_parallaxIterations = 32;
 };
