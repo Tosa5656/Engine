@@ -227,7 +227,7 @@ void DescriptorsManager::CreateDescriptorSets()
     VkMemoryAllocateInfo memoryAllocInfo{};
     memoryAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     memoryAllocInfo.allocationSize = memRequirements.size;
-    memoryAllocInfo.memoryTypeIndex = 0;
+    memoryAllocInfo.memoryTypeIndex = m_device->FindMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     VkDeviceMemory dummyMemory;
     if (vkAllocateMemory(m_device->GetDevice(), &memoryAllocInfo, nullptr, &dummyMemory) != VK_SUCCESS)

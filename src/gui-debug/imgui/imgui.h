@@ -16,6 +16,7 @@ public:
     void NewFrame();
     void Render(VkCommandBuffer commandBuffer);
     void Shutdown();
+    void SetShowCursor(bool show);
 
 private:
     VkDevice m_device;

@@ -47,6 +47,8 @@ public:
     VkQueryPool GetTimestampQueryPool();
     float GetTimestampPeriod();
     void DestroyTimestampQueryPool();
+
+    uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 private:
     Instance* m_instance;
 

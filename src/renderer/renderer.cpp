@@ -573,6 +573,11 @@ float Renderer::GetDeltaTime()
     return m_deltaTime;
 }
 
+void Renderer::SetShowCursor(bool show)
+{
+    m_gui.SetShowCursor(show);
+}
+
 void Renderer::CreateSyncObjects()
 {
     VkSemaphoreCreateInfo semInfo{};

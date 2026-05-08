@@ -61,3 +61,16 @@ void GUI::Shutdown()
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 }
+
+void GUI::SetShowCursor(bool show)
+{
+    ImGuiIO& io = ImGui::GetIO();
+    if (!show)
+    {
+        io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
+    }
+    else
+    {
+        io.ConfigFlags &= ~ImGuiConfigFlags_NoMouseCursorChange;
+    }
+}

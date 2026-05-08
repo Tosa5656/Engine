@@ -122,5 +122,6 @@ void Window::KeyCallback(GLFWwindow *window, int key, int scancode, int action, 
     if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
     {
         win->GetInput()->SetCursorCaptured(true);
+        win->GetRenderer()->SetShowCursor(false);
     }
 }

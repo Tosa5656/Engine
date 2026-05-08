@@ -81,6 +81,7 @@ public:
     void Destroy();
 
     void SetFramebufferResized(bool resized);
+    void SetShowCursor(bool show);
 
     VkDevice GetDevice();
     float GetDeltaTime();
