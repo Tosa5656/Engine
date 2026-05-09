@@ -14,6 +14,8 @@
 - [x] Parallax occlusion mapping (POM)
 - [x] Relief mapping
 
+## v0.3.5 - Architecture
+
 ### Architecture
 - [ ] ECS core (Entity, Component, System)
 - [ ] Component managers (Transform, Mesh, Camera)
