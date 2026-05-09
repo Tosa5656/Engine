@@ -17,6 +17,7 @@
 ## v0.3.5 - Architecture
 
 ### Architecture
+- [x] Copy texture folder to build
 - [ ] ECS core (Entity, Component, System)
 - [ ] Component managers (Transform, Mesh, Camera)
 - [ ] System scheduling (Awake, Update, LateUpdate)

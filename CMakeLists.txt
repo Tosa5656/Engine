@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 4.0)
 
 set(PROJECT_NAME Singularity)
 project(${PROJECT_NAME}
-        VERSION 0.3.0
+        VERSION 0.3.5
         DESCRIPTION "Singularity Game Engine"
         LANGUAGES CXX)
 
@@ -165,4 +165,8 @@ endfunction()
 
 copy_resources("${CMAKE_CURRENT_SOURCE_DIR}/resources/models"
         "${CMAKE_BINARY_DIR}/models"
+)
+
+copy_resources("${CMAKE_CURRENT_SOURCE_DIR}/resources/textures"
+        "${CMAKE_BINARY_DIR}/textures"
 )
