@@ -1,4 +1,10 @@
 #include "renderer/renderer.h"
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/quaternion.hpp>
+#include <renderer/vulkan/light/directional.h>
+#include <renderer/vulkan/light/point.h>
+#include <renderer/vulkan/light/spot.h>
+#include <renderer/vulkan/light/debug_mesh.h>
 
 Renderer::Renderer() {}
 
@@ -31,14 +37,35 @@ void Renderer::Init(GLFWwindow *window, Input* input)
     m_swapChain.CreateImageViews(&m_device);
     m_descriptorManager.Init(&m_device, &m_swapChain, &m_resourceManager, 256);
     m_descriptorManager.CreateDescriptorSetLayout();
-    m_pipelineManager.Create(&m_device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetDescriptorSetLayout(1), m_descriptorManager.GetTextureSetLayout(), m_descriptorManager.GetNormalMapSetLayout(), m_descriptorManager.GetHeightMapSetLayout());
+    m_pipelineManager.Create(&m_device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetDescriptorSetLayout(1), m_descriptorManager.GetTextureSetLayout(), m_descriptorManager.GetNormalMapSetLayout(), m_descriptorManager.GetHeightMapSetLayout(), m_descriptorManager.GetLightSetLayout());
+    m_pipelineManager.CreateLinePipeline(&m_device, &m_swapChain);
     m_commandBufferManager.Init(m_device.GetDevice(), m_device.GetGraphicsQueueFamilyIndex(&m_surface));
     m_resourceManager.CreateUniformBuffers();
-    m_resourceManager.CreateObjectBuffer(4);
+    m_resourceManager.CreateObjectBuffer(128);
+    m_resourceManager.CreateLightBuffer(8);
+
+#ifndef NDEBUG
+    {
+        std::vector<MeshVertex> sphereVerts;
+        std::vector<MeshIndex> sphereIndices;
+        GenerateSphereMesh(sphereVerts, sphereIndices, 1.0f, 16, 12);
+        m_debugSphere.Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), sphereVerts, sphereIndices);
+
+        std::vector<MeshVertex> coneVerts;
+        std::vector<MeshIndex> coneIndices;
+        GenerateConeMesh(coneVerts, coneIndices, 1.0f, 1.0f, 16);
+        m_debugCone.Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), coneVerts, coneIndices);
+
+        std::vector<MeshVertex> arrowVerts;
+        std::vector<MeshIndex> arrowIndices;
+        GenerateArrowMesh(arrowVerts, arrowIndices, 1.0f, 0.3f, 0.15f);
+        m_debugArrow.Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), arrowVerts, arrowIndices);
+    }
+#endif
 
     m_material.SetAlbedo(glm::vec3(1.0f, 1.0f, 1.0f));
     m_material2.SetAlbedo(glm::vec3(1.0f, 1.0f, 1.0f));
-    m_material3.SetAlbedo(glm::vec3(1.0f, 0.0f, 0.0f));
+    m_material3.SetAlbedo(glm::vec3(1.0f, 1.0f, 1.0f));
 
     m_material.Init(&m_device, m_resourceManager.GetAllocator());
     m_material2.Init(&m_device, m_resourceManager.GetAllocator());
@@ -89,6 +116,12 @@ void Renderer::Init(GLFWwindow *window, Input* input)
 
     m_scene.GetCamera()->SetPosition(glm::vec3(8.0f, 5.0f, 8.0f));
     m_scene.GetCamera()->SetAspectRatio(m_swapChain.GetSwapChainExtent().width / (float)m_swapChain.GetSwapChainExtent().height);
+
+    DirectionalLight* sun = new DirectionalLight();
+    sun->SetDirection(glm::vec3(1.0f, -1.0f, 0.5f));
+    sun->SetColor(glm::vec3(1.0f, 0.95f, 0.8f));
+    sun->SetIntensity(10.5f);
+    m_scene.AddLight(sun);
 
     m_descriptorManager.CreateDescriptorPool();
     m_descriptorManager.CreateDescriptorSets();
@@ -191,6 +224,19 @@ void Renderer::Render()
         }
     }
 
+    {
+        auto& lights = m_scene.GetLights();
+        if (!lights.empty() && lights[0] && lights[0]->GetType() == LightType::Directional)
+        {
+            static float angle = 0.0f;
+            angle += m_deltaTime * 0.5f;
+            DirectionalLight* sun = static_cast<DirectionalLight*>(lights[0]);
+            glm::quat rot = glm::angleAxis(angle, glm::vec3(0.0f, 1.0f, 0.0f));
+            sun->SetDirection(rot * glm::vec3(1.0f, -1.0f, 0.5f));
+        }
+    }
+    m_scene.Update(m_deltaTime, &m_resourceManager);
+
     VkCommandBuffer cmd = m_commandBufferManager.GetCommandBuffer(m_currentFrame);
     vkResetCommandBuffer(cmd, 0);
 
@@ -290,6 +336,9 @@ void Renderer::Render()
 
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 0, 1, &m_descriptorManager.GetDescriptorSets()[imageIndex], 0, nullptr);
 
+    VkDescriptorSet lightDS = m_descriptorManager.GetLightDescriptorSet();
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 5, 1, &lightDS, 0, nullptr);
+
     for (Object* obj : m_scene.GetObjects())
     {
         if (obj && obj->IsActive())
@@ -334,6 +383,94 @@ void Renderer::Render()
             obj->Draw(cmd, m_descriptorManager.GetPerObjectDescriptorSets()[0], m_resourceManager.GetObjectUBOStride());
         }
     }
+
+#ifndef NDEBUG
+    if (m_debugLightsEnabled)
+    {
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetLinePipeline());
+
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 0, 1, &m_descriptorManager.GetDescriptorSets()[imageIndex], 0, nullptr);
+        VkDescriptorSet lightDS = m_descriptorManager.GetLightDescriptorSet();
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 5, 1, &lightDS, 0, nullptr);
+
+        VkDescriptorSet nullTex = m_descriptorManager.GetNullTextureDescriptorSet();
+        VkDescriptorSet nullNorm = m_descriptorManager.GetNullNormalMapDescriptorSet();
+        VkDescriptorSet nullHeight = m_descriptorManager.GetNullHeightMapDescriptorSet();
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 2, 1, &nullTex, 0, nullptr);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 3, 1, &nullNorm, 0, nullptr);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 4, 1, &nullHeight, 0, nullptr);
+
+        std::vector<uint32_t> debugSlots;
+        for (Light* light : m_scene.GetLights())
+        {
+            if (!light) continue;
+
+            glm::mat4 model(1.0f);
+            LightType type = light->GetType();
+            glm::vec3 color = light->GetColor();
+
+            if (type == LightType::Point)
+            {
+                const PointLight* pl = static_cast<const PointLight*>(light);
+                glm::vec3 pos = pl->GetPosition();
+                float radius = pl->GetRadius();
+                model = glm::translate(model, pos);
+                model = glm::scale(model, glm::vec3(radius));
+            }
+            else if (type == LightType::Spot)
+            {
+                const SpotLight* sl = static_cast<const SpotLight*>(light);
+                glm::vec3 pos = sl->GetPosition();
+                glm::vec3 dir = sl->GetDirection();
+                float radius = sl->GetRadius();
+                float height = radius;
+                model = glm::translate(model, pos);
+                glm::vec3 up(0.0f, 1.0f, 0.0f);
+                glm::quat rot = glm::rotation(up, glm::normalize(dir));
+                model = model * glm::mat4_cast(rot);
+                model = glm::scale(model, glm::vec3(radius * tan(sl->GetOuterCutoff()), height, radius * tan(sl->GetOuterCutoff())));
+            }
+            else if (type == LightType::Directional)
+            {
+                const DirectionalLight* dl = static_cast<const DirectionalLight*>(light);
+                glm::vec3 dir = dl->GetDirection();
+                glm::quat rot = glm::rotation(glm::vec3(0.0f, 1.0f, 0.0f), glm::normalize(dir));
+                model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f));
+                model = model * glm::mat4_cast(rot);
+                model = glm::scale(model, glm::vec3(1.0f, 3.0f, 1.0f));
+            }
+
+            PerObjectUBO ubo{};
+            ubo.model = model;
+            ubo.albedo = color;
+            ubo.metallic = 0.0f;
+            ubo.roughness = 1.0f;
+            ubo.ao = 1.0f;
+            ubo.normalStrength = 1.0f;
+            ubo.parallaxMode = 0;
+            ubo.parallaxScale = 0.0f;
+            ubo.parallaxIterations = 0;
+
+            uint32_t slot = m_resourceManager.AllocateObjectSlot();
+            debugSlots.push_back(slot);
+            m_resourceManager.UpdatePerObjectUBO(slot, ubo);
+
+            uint32_t dynamicOffset = slot * m_resourceManager.GetObjectUBOStride();
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 1, 1, m_descriptorManager.GetPerObjectDescriptorSets().data(), 1, &dynamicOffset);
+
+            Mesh* mesh = nullptr;
+            if (type == LightType::Point) mesh = &m_debugSphere;
+            else if (type == LightType::Spot) mesh = &m_debugCone;
+            else if (type == LightType::Directional) mesh = &m_debugArrow;
+
+            if (mesh) mesh->Draw(cmd);
+        }
+        for (uint32_t slot : debugSlots)
+        {
+            m_resourceManager.FreeObjectSlot(slot);
+        }
+    }
+#endif
 
     m_gui.Render(cmd);
 
@@ -522,8 +659,18 @@ void Renderer::Destroy()
             delete obj;
         }
     }
+    for (Light* light : m_scene.GetLights())
+    {
+        delete light;
+    }
     m_scene.Destroy();
     m_mesh.Destroy();
+
+#ifndef NDEBUG
+    m_debugSphere.Destroy();
+    m_debugCone.Destroy();
+    m_debugArrow.Destroy();
+#endif
 
     m_commandBufferManager.Shutdown();
 

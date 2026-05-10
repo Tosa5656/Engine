@@ -113,6 +113,13 @@ private:
 
     ComputePipeline m_computePipeline;
     GUI m_gui;
+
+#ifndef NDEBUG
+    Mesh m_debugSphere;
+    Mesh m_debugCone;
+    Mesh m_debugArrow;
+    bool m_debugLightsEnabled = true;
+#endif
     bool m_computeResultPrinted = false;
 
     std::array<VkSemaphore, MAX_FRAMES_IN_FLIGHT> m_imageAvailableSemaphores;

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 4.0)
 
 set(PROJECT_NAME Singularity)
 project(${PROJECT_NAME}
-        VERSION 0.3.5
+        VERSION 0.4.0
         DESCRIPTION "Singularity Game Engine"
         LANGUAGES CXX)
 
@@ -30,7 +30,12 @@ set(PROJECT_SOURCES src/main.cpp
                     src/renderer/vulkan/computepipeline.cpp
                     src/renderer/vulkan/texture.cpp
                     src/renderer/vulkan/texturearray.cpp
-                    src/utils/input/input.cpp)
+                    src/utils/input/input.cpp
+                    src/renderer/vulkan/light/light.cpp
+                    src/renderer/vulkan/light/directional.cpp
+                    src/renderer/vulkan/light/point.cpp
+                    src/renderer/vulkan/light/spot.cpp
+                    src/renderer/vulkan/light/debug_mesh.cpp)
 add_executable(${PROJECT_NAME} ${PROJECT_SOURCES})
 include_directories(src/)
 

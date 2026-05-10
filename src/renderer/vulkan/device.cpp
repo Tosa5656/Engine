@@ -29,6 +29,7 @@ void Device::Create(Instance* instance, Surface* surface)
 
     VkPhysicalDeviceFeatures deviceFeatures{};
     deviceFeatures.samplerAnisotropy = VK_TRUE;
+    deviceFeatures.fillModeNonSolid = VK_TRUE;
 
     VkPhysicalDeviceDynamicRenderingFeatures dynamicRenderingFeatures{};
     dynamicRenderingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;

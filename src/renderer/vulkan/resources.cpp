@@ -31,6 +31,12 @@ void ResourceManager::Cleanup()
         m_objectBuffer = VK_NULL_HANDLE;
     }
 
+    if (m_lightBuffer != VK_NULL_HANDLE)
+    {
+        vmaDestroyBuffer(m_allocator, m_lightBuffer, m_lightAllocation);
+        m_lightBuffer = VK_NULL_HANDLE;
+    }
+
     if (m_computeResultBuffer != VK_NULL_HANDLE)
     {
         vmaDestroyBuffer(m_allocator, m_computeResultBuffer, m_computeResultAllocation);
@@ -104,6 +110,31 @@ void ResourceManager::UpdatePerFrameUBO(uint32_t currentImage, Camera& camera)
     vmaUnmapMemory(m_allocator, m_perFrameAllocations[currentImage]);
 }
 
+void ResourceManager::CreateLightBuffer(uint32_t maxLights)
+{
+    VkDeviceSize bufferSize = sizeof(LightUBO) * maxLights + sizeof(int);
+    m_lightBufferSize = bufferSize;
+    CreateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, m_lightBuffer, m_lightAllocation);
+}
+
+void ResourceManager::UpdateLightBuffer(const std::vector<LightUBO>& lights, int lightCount)
+{
+    VkDeviceSize bufferSize = sizeof(LightUBO) * 8 + sizeof(int);
+
+    LightUBO lightArray[8]{};
+    int count = lightCount;
+    for (int i = 0; i < lightCount && i < 8; i++)
+    {
+        lightArray[i] = lights[i];
+    }
+
+    void* mappedData;
+    vmaMapMemory(m_allocator, m_lightAllocation, &mappedData);
+    memcpy(mappedData, lightArray, sizeof(LightUBO) * 8);
+    memcpy(static_cast<char*>(mappedData) + sizeof(LightUBO) * 8, &count, sizeof(int));
+    vmaUnmapMemory(m_allocator, m_lightAllocation);
+}
+
 void ResourceManager::UpdatePerObjectUBO(uint32_t slot, const PerObjectUBO& uboData)
 {
     VkDeviceSize offset = static_cast<VkDeviceSize>(slot) * m_objectUBOStride;
@@ -123,6 +154,11 @@ uint32_t ResourceManager::AllocateObjectSlot()
         return slot;
     }
     return m_objectCount++;
+}
+
+void ResourceManager::FreeObjectSlot(uint32_t slot)
+{
+    m_freeSlots.push_back(slot);
 }
 
 void ResourceManager::CreateAllocator()

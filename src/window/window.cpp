@@ -6,12 +6,16 @@ Window::Window()
     m_windowClosed = false;
 }
 
-Window::Window(std::string title, int width, int height)
+Window::Window(std::string title, int width, int height, std::function<void()> awake, std::function<void()> start, std::function<void()> update)
 {
     m_title = title;
     m_width = width;
     m_height = height;
     m_windowClosed = false;
+
+    m_awake = awake;
+    m_start = start;
+    m_update = update;
 
     Init();
 }
@@ -37,7 +41,13 @@ void Window::Init()
     glfwSetFramebufferSizeCallback(m_window, FramebufferResizeCallback);
     glfwSetKeyCallback(m_window, KeyCallback);
 
+    m_awake();
+
     glfwMakeContextCurrent(m_window);
+
+    glfwSwapInterval(0);
+
+    m_start();
 
     m_input = Input(m_window);
     m_renderer.Init(m_window, &m_input);
@@ -51,6 +61,7 @@ void Window::Update()
 {
     m_input.Update();
     m_renderer.Render();
+    m_update();
 }
 
 void Window::Close()

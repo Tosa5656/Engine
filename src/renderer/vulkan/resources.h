@@ -21,6 +21,15 @@ struct PerFrameUBO
     float padding;
 };
 
+struct LightUBO
+{
+    alignas(16) glm::vec4 position;
+    alignas(16) glm::vec4 direction;
+    alignas(16) glm::vec4 color;
+    alignas(16) glm::vec4 params;
+    alignas(16) glm::vec4 atten;
+};
+
 enum ParallaxMode : int
 {
     ParallaxOcclusionMapping = 0,
@@ -59,6 +68,7 @@ public:
     void UpdatePerFrameUBO(uint32_t currentImage, Camera& camera);
     void UpdatePerObjectUBO(uint32_t slot, const PerObjectUBO& data);
     uint32_t AllocateObjectSlot();
+    void FreeObjectSlot(uint32_t slot);
 
     VkDevice GetVkDevice();
 
@@ -68,6 +78,11 @@ public:
     VmaAllocation GetObjectBufferAllocation() const { return m_objectAllocation; }
     uint32_t GetObjectUBOStride() const { return m_objectUBOStride; }
     VmaAllocator GetAllocator();
+
+    void CreateLightBuffer(uint32_t maxLights);
+    void UpdateLightBuffer(const std::vector<LightUBO>& lights, int lightCount);
+    VkBuffer GetLightBuffer() const { return m_lightBuffer; }
+    VkDeviceSize GetLightBufferSize() const { return m_lightBufferSize; }
 
     void CreateComputeResultBuffer();
     VkBuffer GetComputeResultBuffer() const { return m_computeResultBuffer; }
@@ -89,6 +104,10 @@ private:
     uint32_t m_objectCount = 0;
     std::vector<uint32_t> m_freeSlots;
     VmaAllocator m_allocator = VK_NULL_HANDLE;
+
+    VkBuffer m_lightBuffer = VK_NULL_HANDLE;
+    VmaAllocation m_lightAllocation = VK_NULL_HANDLE;
+    VkDeviceSize m_lightBufferSize = 0;
 
     VkBuffer m_computeResultBuffer = VK_NULL_HANDLE;
     VmaAllocation m_computeResultAllocation = VK_NULL_HANDLE;

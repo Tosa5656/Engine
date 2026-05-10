@@ -20,16 +20,19 @@ public:
     PipelineManager();
     ~PipelineManager();
 
-    void Create(Device* device, SwapChain* swapChain, VkDescriptorSetLayout perFrameSetLayout, VkDescriptorSetLayout perObjectSetLayout, VkDescriptorSetLayout textureSetLayout, VkDescriptorSetLayout normalMapSetLayout, VkDescriptorSetLayout heightMapSetLayout);
+    void Create(Device* device, SwapChain* swapChain, VkDescriptorSetLayout perFrameSetLayout, VkDescriptorSetLayout perObjectSetLayout, VkDescriptorSetLayout textureSetLayout, VkDescriptorSetLayout normalMapSetLayout, VkDescriptorSetLayout heightMapSetLayout, VkDescriptorSetLayout lightSetLayout);
+    void CreateLinePipeline(Device* device, SwapChain* swapChain);
     void Shutdown(Device* device);
     VkShaderModule CreateShaderModule(const std::vector<char> &code, Device* device);
 
     VkPipeline GetGraphicsPipeline();
+    VkPipeline GetLinePipeline() const { return m_lineGraphicsPipeline; }
     VkPipelineLayout GetPipelineLayout();
 private:
     std::vector<char> ReadFile(const std::string& filename);
 
     VkPipelineLayout m_pipelineLayout;
     VkPipeline m_graphicsPipeline;
+    VkPipeline m_lineGraphicsPipeline = VK_NULL_HANDLE;
     VkPipelineRenderingCreateInfo m_pipelineRenderingCreateInfo{};
 };

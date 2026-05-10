@@ -38,6 +38,12 @@ void DescriptorsManager::Cleanup()
         m_perObjectSetLayout = VK_NULL_HANDLE;
     }
 
+    if (m_lightSetLayout != VK_NULL_HANDLE)
+    {
+        vkDestroyDescriptorSetLayout(device, m_lightSetLayout, nullptr);
+        m_lightSetLayout = VK_NULL_HANDLE;
+    }
+
     if (m_computeSetLayout != VK_NULL_HANDLE)
     {
         vkDestroyDescriptorSetLayout(device, m_computeSetLayout, nullptr);
@@ -83,7 +89,7 @@ void DescriptorsManager::Cleanup()
 
 void DescriptorsManager::CreateDescriptorPool()
 {
-    std::vector<VkDescriptorPoolSize> poolSizes(7);
+    std::vector<VkDescriptorPoolSize> poolSizes(8);
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSizes[0].descriptorCount = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size());
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
@@ -98,12 +104,14 @@ void DescriptorsManager::CreateDescriptorPool()
     poolSizes[5].descriptorCount = 256;
     poolSizes[6].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     poolSizes[6].descriptorCount = 1;
+    poolSizes[7].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSizes[7].descriptorCount = 1;
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
     poolInfo.pPoolSizes = poolSizes.data();
-    poolInfo.maxSets = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size()) + 2 + 256 + 256 + 256 + 1;
+    poolInfo.maxSets = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size()) + 2 + 256 + 256 + 256 + 1 + 1;
 
     if (vkCreateDescriptorPool(m_device->GetDevice(), &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS)
     {
@@ -180,6 +188,30 @@ void DescriptorsManager::CreateDescriptorSets()
 
         vkUpdateDescriptorSets(m_device->GetDevice(), 1, &descriptorWrite, 0, nullptr);
     }
+
+    VkDescriptorSetAllocateInfo lightAllocInfo{};
+    lightAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    lightAllocInfo.descriptorPool = m_descriptorPool;
+    lightAllocInfo.descriptorSetCount = 1;
+    lightAllocInfo.pSetLayouts = &m_lightSetLayout;
+
+    if (vkAllocateDescriptorSets(m_device->GetDevice(), &lightAllocInfo, &m_lightDescriptorSet) != VK_SUCCESS)
+        throw std::runtime_error("failed to allocate light descriptor set!");
+
+    VkDescriptorBufferInfo lightBufferInfo{};
+    lightBufferInfo.buffer = m_resourceManager->GetLightBuffer();
+    lightBufferInfo.offset = 0;
+    lightBufferInfo.range = m_resourceManager->GetLightBufferSize();
+
+    VkWriteDescriptorSet lightDescriptorWrite{};
+    lightDescriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    lightDescriptorWrite.dstSet = m_lightDescriptorSet;
+    lightDescriptorWrite.dstBinding = 0;
+    lightDescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    lightDescriptorWrite.descriptorCount = 1;
+    lightDescriptorWrite.pBufferInfo = &lightBufferInfo;
+
+    vkUpdateDescriptorSets(m_device->GetDevice(), 1, &lightDescriptorWrite, 0, nullptr);
 
     VkDescriptorSetAllocateInfo nullAllocInfo{};
     nullAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -398,6 +430,22 @@ void DescriptorsManager::CreateDescriptorSetLayout()
     if (vkCreateDescriptorSetLayout(m_device->GetDevice(), &heightMapLayoutInfo, nullptr, &m_heightMapSetLayout) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to create height map descriptor set layout!");
+    }
+
+    VkDescriptorSetLayoutBinding lightBinding{};
+    lightBinding.binding = 0;
+    lightBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    lightBinding.descriptorCount = 1;
+    lightBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo lightLayoutInfo{};
+    lightLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    lightLayoutInfo.bindingCount = 1;
+    lightLayoutInfo.pBindings = &lightBinding;
+
+    if (vkCreateDescriptorSetLayout(m_device->GetDevice(), &lightLayoutInfo, nullptr, &m_lightSetLayout) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create light descriptor set layout!");
     }
 }
 

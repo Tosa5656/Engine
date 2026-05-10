@@ -36,6 +36,8 @@ public:
     VkDescriptorSetLayout GetComputeDescriptorSetLayout();
     VkDescriptorSet GetComputeDescriptorSet();
     VkDescriptorSetLayout GetTextureSetLayout() const { return m_textureSetLayout; }
+    VkDescriptorSetLayout GetLightSetLayout() const { return m_lightSetLayout; }
+    VkDescriptorSet GetLightDescriptorSet() const { return m_lightDescriptorSet; }
     VkDescriptorSetLayout GetNormalMapSetLayout() const { return m_normalMapSetLayout; }
     VkDescriptorSetLayout GetHeightMapSetLayout() const { return m_heightMapSetLayout; }
     VkDescriptorSet GetNullTextureDescriptorSet() const { return m_nullTextureDescriptorSet; }
@@ -59,6 +61,8 @@ private:
     VkDescriptorSetLayout m_perObjectSetLayout;
     VkDescriptorSetLayout m_computeSetLayout;
     VkDescriptorSetLayout m_textureSetLayout;
+    VkDescriptorSetLayout m_lightSetLayout = VK_NULL_HANDLE;
+    VkDescriptorSet m_lightDescriptorSet = VK_NULL_HANDLE;
     VkDescriptorSetLayout m_normalMapSetLayout;
     VkDescriptorSetLayout m_heightMapSetLayout;
     VkDescriptorSet m_nullTextureDescriptorSet;

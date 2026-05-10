@@ -38,6 +38,21 @@ layout(set = 2, binding = 0) uniform sampler2D texSampler;
 layout(set = 3, binding = 0) uniform sampler2D texNormalSampler;
 layout(set = 4, binding = 0) uniform sampler2D texHeightSampler;
 
+struct Light
+{
+    vec4 position;
+    vec4 direction;
+    vec4 color;
+    vec4 params;
+    vec4 atten;
+};
+
+layout(set = 5, binding = 0) uniform LightUBO
+{
+    Light lights[8];
+    int lightCount;
+} lightData;
+
 layout(location = 0) out vec4 outColor;
 
 vec2 ParallaxOcclusionMapping(vec2 texCoord, vec3 viewDirTS, float scale)
@@ -104,6 +119,77 @@ vec2 ReliefMapping(vec2 texCoord, vec3 viewDirTS, float scale)
     return texCoord - ray.xy * depth;
 }
 
+vec3 ComputeDirectionalLight(Light light, vec3 normal, vec3 viewDir, vec3 albedo)
+{
+    vec3 lightDir = normalize(light.direction.xyz);
+    float intensity = light.direction.w;
+    vec3 lightColor = light.color.rgb * intensity;
+
+    float diff = max(dot(normal, lightDir), 0.0);
+    vec3 diffuse = albedo * diff;
+
+    vec3 halfDir = normalize(lightDir + viewDir);
+    float spec = pow(max(dot(normal, halfDir), 0.0), 32.0);
+    vec3 specular = lightColor * spec * fragMetallic;
+
+    return lightColor * diffuse + specular;
+}
+
+vec3 ComputePointLight(Light light, vec3 fragPos, vec3 normal, vec3 viewDir, vec3 albedo)
+{
+    vec3 lightPos = light.position.xyz;
+    vec3 lightDir = lightPos - fragPos;
+    float distance = length(lightDir);
+    lightDir = normalize(lightDir);
+    float intensity = light.direction.w;
+    vec3 lightColor = light.color.rgb * intensity;
+
+    float attenuation = 1.0 / (light.atten.x + light.atten.y * distance + light.atten.z * (distance * distance));
+    float radius = light.params.z;
+    float radiusAtten = clamp(1.0 - (distance * distance) / (radius * radius), 0.0, 1.0);
+    radiusAtten *= radiusAtten;
+
+    float diff = max(dot(normal, lightDir), 0.0);
+    vec3 diffuse = albedo * diff;
+
+    vec3 halfDir = normalize(lightDir + viewDir);
+    float spec = pow(max(dot(normal, halfDir), 0.0), 32.0);
+    vec3 specular = lightColor * spec * fragMetallic;
+
+    return (lightColor * diffuse + specular) * attenuation * radiusAtten;
+}
+
+vec3 ComputeSpotLight(Light light, vec3 fragPos, vec3 normal, vec3 viewDir, vec3 albedo)
+{
+    vec3 lightPos = light.position.xyz;
+    vec3 lightDir = lightPos - fragPos;
+    float distance = length(lightDir);
+    lightDir = normalize(lightDir);
+    float intensity = light.direction.w;
+    vec3 lightColor = light.color.rgb * intensity;
+
+    float attenuation = 1.0 / (light.atten.x + light.atten.y * distance + light.atten.z * (distance * distance));
+    float radius = light.params.z;
+    float radiusAtten = clamp(1.0 - (distance * distance) / (radius * radius), 0.0, 1.0);
+    radiusAtten *= radiusAtten;
+
+    vec3 spotDir = normalize(light.direction.xyz);
+    float theta = dot(lightDir, spotDir);
+    float innerCutoff = light.params.x;
+    float outerCutoff = light.params.y;
+    float epsilon = innerCutoff - outerCutoff;
+    float spotIntensity = clamp((theta - outerCutoff) / epsilon, 0.0, 1.0);
+
+    float diff = max(dot(normal, lightDir), 0.0);
+    vec3 diffuse = albedo * diff;
+
+    vec3 halfDir = normalize(lightDir + viewDir);
+    float spec = pow(max(dot(normal, halfDir), 0.0), 32.0);
+    vec3 specular = lightColor * spec * fragMetallic;
+
+    return (lightColor * diffuse + specular) * attenuation * radiusAtten * spotIntensity;
+}
+
 void main()
 {
     vec3 tangent = normalize(fragTangent);
@@ -130,18 +216,31 @@ void main()
     vec3 normalMap = texture(texNormalSampler, finalUV).rgb;
     vec3 normal = normalize(TBN * (normalMap * 2.0 - 1.0));
 
-    vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));
     vec3 viewDir = normalize(perFrame.cameraPos - fragWorldPos);
 
-    float diff = max(dot(normal, lightDir), 0.0);
-
     vec3 ambient = albedo * 0.3 * fragAO;
-    vec3 diffuse = albedo * diff;
+    vec3 lighting = vec3(0.0);
 
-    float fresnel = fragMetallic * pow(1.0 - max(dot(normal, viewDir), 0.0), 3.0);
-    vec3 metallicReflect = albedo * fragMetallic * fresnel;
+    for (int i = 0; i < lightData.lightCount && i < 8; i++)
+    {
+        Light light = lightData.lights[i];
+        int type = int(light.position.w);
 
-    vec3 color = ambient + diffuse + metallicReflect;
+        if (type == 0)
+        {
+            lighting += ComputeDirectionalLight(light, normal, viewDir, albedo);
+        }
+        else if (type == 1)
+        {
+            lighting += ComputePointLight(light, fragWorldPos, normal, viewDir, albedo);
+        }
+        else if (type == 2)
+        {
+            lighting += ComputeSpotLight(light, fragWorldPos, normal, viewDir, albedo);
+        }
+    }
+
+    vec3 color = ambient + lighting;
     color = color / (color + vec3(1.0));
     outColor = vec4(color, 1.0);
 }

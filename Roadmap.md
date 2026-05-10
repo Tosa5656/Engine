@@ -13,26 +13,17 @@
 - [x] Normal mapping (tangent space normals)
 - [x] Parallax occlusion mapping (POM)
 - [x] Relief mapping
-
-## v0.3.5 - Architecture
-
-### Architecture
 - [x] Copy texture folder to build
-- [ ] ECS core (Entity, Component, System)
-- [ ] Component managers (Transform, Mesh, Camera)
-- [ ] System scheduling (Awake, Update, LateUpdate)
-- [ ] Entity lifecycle management
-- [ ] World / Scene graph interface
 
 ---
 
 ## v0.4.0 - Lighting & Shadows
 
 ### Light
-- [ ] Point light (position, color, intensity, radius)
-- [ ] Directional light (direction, color, intensity)
-- [ ] Spotlight (position, direction, cone angle, penumbra)
-- [ ] Light types enumeration and registry
+- [x] Directional light (direction, color, intensity)
+- [x] Point light (position, color, intensity, radius)
+- [x] Spotlight (position, direction, cone angle, penumbra)
+- [x] Light types enumeration and registry
 - [ ] Deferred shading G-buffer (position, normal, albedo, emissive)
 - [ ] Forward+ / tiled rendering fallback
 - [ ] HDR pipeline (RGB16F framebuffer)
