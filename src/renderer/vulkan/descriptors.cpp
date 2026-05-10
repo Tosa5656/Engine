@@ -1,5 +1,6 @@
 #include "descriptors.h"
 #include "resources.h"
+#include <array>
 
 DescriptorsManager::DescriptorsManager() : m_dummySampler(VK_NULL_HANDLE), m_dummyImageView(VK_NULL_HANDLE), m_dummyImageMemory(VK_NULL_HANDLE), m_normalMapSetLayout(VK_NULL_HANDLE), m_nullNormalMapDescriptorSet(VK_NULL_HANDLE), m_heightMapSetLayout(VK_NULL_HANDLE), m_nullHeightMapDescriptorSet(VK_NULL_HANDLE) {}
 DescriptorsManager::~DescriptorsManager() {}
@@ -85,6 +86,18 @@ void DescriptorsManager::Cleanup()
         vkFreeMemory(device, m_dummyImageMemory, nullptr);
     }
     m_dummyImageMemory = VK_NULL_HANDLE;
+
+    if (m_gbufferSetLayout != VK_NULL_HANDLE)
+    {
+        vkDestroyDescriptorSetLayout(device, m_gbufferSetLayout, nullptr);
+        m_gbufferSetLayout = VK_NULL_HANDLE;
+    }
+
+    if (m_compositeSetLayout != VK_NULL_HANDLE)
+    {
+        vkDestroyDescriptorSetLayout(device, m_compositeSetLayout, nullptr);
+        m_compositeSetLayout = VK_NULL_HANDLE;
+    }
 }
 
 void DescriptorsManager::CreateDescriptorPool()
@@ -107,11 +120,17 @@ void DescriptorsManager::CreateDescriptorPool()
     poolSizes[7].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSizes[7].descriptorCount = 1;
 
+    poolSizes.resize(10);
+    poolSizes[8].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[8].descriptorCount = 5;
+    poolSizes[9].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[9].descriptorCount = 2;
+
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
     poolInfo.pPoolSizes = poolSizes.data();
-    poolInfo.maxSets = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size()) + 2 + 256 + 256 + 256 + 1 + 1;
+    poolInfo.maxSets = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size()) + 2 + 256 + 256 + 256 + 1 + 1 + 2;
 
     if (vkCreateDescriptorPool(m_device->GetDevice(), &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS)
     {
@@ -447,6 +466,41 @@ void DescriptorsManager::CreateDescriptorSetLayout()
     {
         throw std::runtime_error("failed to create light descriptor set layout!");
     }
+
+    std::array<VkDescriptorSetLayoutBinding, 5> gbufferBindings{};
+    for (uint32_t i = 0; i < 5; i++)
+    {
+        gbufferBindings[i].binding = i;
+        gbufferBindings[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        gbufferBindings[i].descriptorCount = 1;
+        gbufferBindings[i].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    }
+
+    VkDescriptorSetLayoutCreateInfo gbufferLayoutInfo{};
+    gbufferLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    gbufferLayoutInfo.bindingCount = 5;
+    gbufferLayoutInfo.pBindings = gbufferBindings.data();
+
+    if (vkCreateDescriptorSetLayout(m_device->GetDevice(), &gbufferLayoutInfo, nullptr, &m_gbufferSetLayout) != VK_SUCCESS)
+        throw std::runtime_error("failed to create g-buffer descriptor set layout!");
+
+    VkDescriptorSetLayoutBinding compositeBindings[2]{};
+    compositeBindings[0].binding = 0;
+    compositeBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    compositeBindings[0].descriptorCount = 1;
+    compositeBindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    compositeBindings[1].binding = 0;
+    compositeBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    compositeBindings[1].descriptorCount = 1;
+    compositeBindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo compositeLayoutInfo{};
+    compositeLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    compositeLayoutInfo.bindingCount = 1;
+    compositeLayoutInfo.pBindings = compositeBindings;
+
+    if (vkCreateDescriptorSetLayout(m_device->GetDevice(), &compositeLayoutInfo, nullptr, &m_compositeSetLayout) != VK_SUCCESS)
+        throw std::runtime_error("failed to create composite descriptor set layout!");
 }
 
 VkDescriptorPool DescriptorsManager::GetDescriptorPool()
@@ -648,4 +702,168 @@ VkDescriptorSet DescriptorsManager::CreateTextureDescriptorSet(TextureArray* tex
     vkUpdateDescriptorSets(m_device->GetDevice(), 1, &descriptorWrite, 0, nullptr);
 
     return descriptorSet;
+}
+
+void DescriptorsManager::CreateGBufferDescriptorSet()
+{
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = m_descriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = &m_gbufferSetLayout;
+
+    if (vkAllocateDescriptorSets(m_device->GetDevice(), &allocInfo, &m_gbufferDescriptorSet) != VK_SUCCESS)
+        throw std::runtime_error("failed to allocate g-buffer descriptor set!");
+
+    VkImageView gBufferViews[5] = {
+        m_swapChain->GetPositionImageView(),
+        m_swapChain->GetNormalImageView(),
+        m_swapChain->GetAlbedoImageView(),
+        m_swapChain->GetMaterialImageView(),
+        m_swapChain->GetDepthImageView()
+    };
+
+    VkDescriptorImageInfo imageInfos[5]{};
+    VkWriteDescriptorSet writes[5]{};
+    for (uint32_t i = 0; i < 5; i++)
+    {
+        imageInfos[i].sampler = m_dummySampler;
+        imageInfos[i].imageView = gBufferViews[i];
+        imageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[i].pNext = nullptr;
+        writes[i].dstSet = m_gbufferDescriptorSet;
+        writes[i].dstBinding = i;
+        writes[i].dstArrayElement = 0;
+        writes[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writes[i].descriptorCount = 1;
+        writes[i].pImageInfo = &imageInfos[i];
+    }
+
+    vkUpdateDescriptorSets(m_device->GetDevice(), 5, writes, 0, nullptr);
+}
+
+void DescriptorsManager::CreateCompositeDescriptorSet()
+{
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = m_descriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = &m_compositeSetLayout;
+
+    if (vkAllocateDescriptorSets(m_device->GetDevice(), &allocInfo, &m_compositeDescriptorSet) != VK_SUCCESS)
+        throw std::runtime_error("failed to allocate composite descriptor set (lighting result)!");
+
+    VkDescriptorImageInfo imageInfo{};
+    imageInfo.sampler = m_dummySampler;
+    imageInfo.imageView = m_swapChain->GetLightingResultImageView();
+    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkWriteDescriptorSet write{};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.pNext = nullptr;
+    write.dstSet = m_compositeDescriptorSet;
+    write.dstBinding = 0;
+    write.dstArrayElement = 0;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write.descriptorCount = 1;
+    write.pImageInfo = &imageInfo;
+
+    vkUpdateDescriptorSets(m_device->GetDevice(), 1, &write, 0, nullptr);
+
+    VkDescriptorSetAllocateInfo emissiveAllocInfo{};
+    emissiveAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    emissiveAllocInfo.descriptorPool = m_descriptorPool;
+    emissiveAllocInfo.descriptorSetCount = 1;
+    emissiveAllocInfo.pSetLayouts = &m_compositeSetLayout;
+
+    if (vkAllocateDescriptorSets(m_device->GetDevice(), &emissiveAllocInfo, &m_emissiveAccumDescriptorSet) != VK_SUCCESS)
+        throw std::runtime_error("failed to allocate composite descriptor set (emissive accum)!");
+
+    VkDescriptorImageInfo emissiveImageInfo{};
+    emissiveImageInfo.sampler = m_dummySampler;
+    emissiveImageInfo.imageView = m_swapChain->GetEmissiveAccumImageView();
+    emissiveImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkWriteDescriptorSet emissiveWrite{};
+    emissiveWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    emissiveWrite.pNext = nullptr;
+    emissiveWrite.dstSet = m_emissiveAccumDescriptorSet;
+    emissiveWrite.dstBinding = 0;
+    emissiveWrite.dstArrayElement = 0;
+    emissiveWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    emissiveWrite.descriptorCount = 1;
+    emissiveWrite.pImageInfo = &emissiveImageInfo;
+
+    vkUpdateDescriptorSets(m_device->GetDevice(), 1, &emissiveWrite, 0, nullptr);
+}
+
+void DescriptorsManager::UpdateGBufferDescriptorSet()
+{
+    if (m_gbufferDescriptorSet == VK_NULL_HANDLE) return;
+
+    VkImageView gBufferViews[5] = {
+        m_swapChain->GetPositionImageView(),
+        m_swapChain->GetNormalImageView(),
+        m_swapChain->GetAlbedoImageView(),
+        m_swapChain->GetMaterialImageView(),
+        m_swapChain->GetDepthImageView()
+    };
+
+    VkDescriptorImageInfo imageInfos[5]{};
+    VkWriteDescriptorSet writes[5]{};
+    for (uint32_t i = 0; i < 5; i++)
+    {
+        imageInfos[i].sampler = m_dummySampler;
+        imageInfos[i].imageView = gBufferViews[i];
+        imageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[i].pNext = nullptr;
+        writes[i].dstSet = m_gbufferDescriptorSet;
+        writes[i].dstBinding = i;
+        writes[i].dstArrayElement = 0;
+        writes[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writes[i].descriptorCount = 1;
+        writes[i].pImageInfo = &imageInfos[i];
+    }
+
+    vkUpdateDescriptorSets(m_device->GetDevice(), 5, writes, 0, nullptr);
+}
+
+void DescriptorsManager::UpdateCompositeDescriptorSet()
+{
+    VkWriteDescriptorSet write{};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.pNext = nullptr;
+    write.dstArrayElement = 0;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write.descriptorCount = 1;
+
+    if (m_compositeDescriptorSet != VK_NULL_HANDLE)
+    {
+        VkDescriptorImageInfo imageInfo{};
+        imageInfo.sampler = m_dummySampler;
+        imageInfo.imageView = m_swapChain->GetLightingResultImageView();
+        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        write.dstSet = m_compositeDescriptorSet;
+        write.dstBinding = 0;
+        write.pImageInfo = &imageInfo;
+        vkUpdateDescriptorSets(m_device->GetDevice(), 1, &write, 0, nullptr);
+    }
+
+    if (m_emissiveAccumDescriptorSet != VK_NULL_HANDLE)
+    {
+        VkDescriptorImageInfo emissiveImageInfo{};
+        emissiveImageInfo.sampler = m_dummySampler;
+        emissiveImageInfo.imageView = m_swapChain->GetEmissiveAccumImageView();
+        emissiveImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        write.dstSet = m_emissiveAccumDescriptorSet;
+        write.dstBinding = 0;
+        write.pImageInfo = &emissiveImageInfo;
+        vkUpdateDescriptorSets(m_device->GetDevice(), 1, &write, 0, nullptr);
+    }
 }

@@ -170,6 +170,13 @@ void Renderer::Init(GLFWwindow *window, Input* input)
         m_material2.SetHeightMapDescriptorSet(m_descriptorManager.CreateHeightMapDescriptorSet(m_material2.GetHeightMap()));
     }
 
+    m_descriptorManager.CreateGBufferDescriptorSet();
+    m_descriptorManager.CreateCompositeDescriptorSet();
+
+    m_pipelineManager.CreateGBufferPipeline(&m_device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetDescriptorSetLayout(1), m_descriptorManager.GetTextureSetLayout(), m_descriptorManager.GetNormalMapSetLayout(), m_descriptorManager.GetHeightMapSetLayout());
+    m_pipelineManager.CreateLightingPipeline(&m_device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetGBufferSetLayout(), m_descriptorManager.GetLightSetLayout());
+    m_pipelineManager.CreateCompositePipeline(&m_device, &m_swapChain, m_descriptorManager.GetCompositeSetLayout());
+
     m_resourceManager.CreateComputeResultBuffer();
     m_descriptorManager.CreateComputeDescriptorSetLayout();
     m_computePipeline.Create(&m_device, "shaders/compute.spv", m_descriptorManager.GetComputeDescriptorSetLayout());
@@ -201,6 +208,8 @@ void Renderer::Render()
     if (result == VK_ERROR_OUT_OF_DATE_KHR)
     {
         m_swapChain.Recreate(&m_device, m_window, &m_surface, &m_commandBufferManager, m_resourceManager.GetAllocator());
+        m_descriptorManager.UpdateGBufferDescriptorSet();
+        m_descriptorManager.UpdateCompositeDescriptorSet();
         return;
     }
     else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
@@ -246,79 +255,24 @@ void Renderer::Render()
     vkCmdResetQueryPool(cmd, m_device.GetTimestampQueryPool(), 0, 2);
     vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, m_device.GetTimestampQueryPool(), 0);
 
-    VkImageMemoryBarrier barrier{};
-    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.image = m_swapChain.GetSwapChainImages()[imageIndex];
-    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    barrier.subresourceRange.baseMipLevel = 0;
-    barrier.subresourceRange.levelCount = 1;
-    barrier.subresourceRange.baseArrayLayer = 0;
-    barrier.subresourceRange.layerCount = 1;
-    barrier.srcAccessMask = 0;
-    barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    auto transitionImage = [&](VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout, VkImageAspectFlags aspectMask, VkAccessFlags srcAccess, VkAccessFlags dstAccess, VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage) {
+        VkImageMemoryBarrier barrier{};
+        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.oldLayout = oldLayout;
+        barrier.newLayout = newLayout;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.image = image;
+        barrier.subresourceRange.aspectMask = aspectMask;
+        barrier.subresourceRange.baseMipLevel = 0;
+        barrier.subresourceRange.levelCount = 1;
+        barrier.subresourceRange.baseArrayLayer = 0;
+        barrier.subresourceRange.layerCount = 1;
+        barrier.srcAccessMask = srcAccess;
+        barrier.dstAccessMask = dstAccess;
 
-    vkCmdPipelineBarrier(cmd,
-        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        0,
-        0, nullptr,
-        0, nullptr,
-        1, &barrier);
-
-    VkImageMemoryBarrier depthBarrier{};
-    depthBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    depthBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    depthBarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-    depthBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    depthBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    depthBarrier.image = m_swapChain.GetDepthImage();
-    depthBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-    depthBarrier.subresourceRange.baseMipLevel = 0;
-    depthBarrier.subresourceRange.levelCount = 1;
-    depthBarrier.subresourceRange.baseArrayLayer = 0;
-    depthBarrier.subresourceRange.layerCount = 1;
-    depthBarrier.srcAccessMask = 0;
-    depthBarrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
-
-    vkCmdPipelineBarrier(cmd,
-        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-        0,
-        0, nullptr,
-        0, nullptr,
-        1, &depthBarrier);
-
-    VkRenderingAttachmentInfo colorAttachment{};
-    colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    colorAttachment.imageView = m_swapChain.GetSwapChainImageViews()[imageIndex];
-    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    colorAttachment.clearValue = {{0.0f, 0.0f, 0.0f, 1.0f}};
-
-    VkRenderingAttachmentInfo depthAttachment{};
-    depthAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    depthAttachment.imageView = m_swapChain.GetDepthImageView();
-    depthAttachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-    depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depthAttachment.clearValue.depthStencil = {1.0f, 0};
-
-    VkRenderingInfo renderingInfo{};
-    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-    renderingInfo.renderArea = {{0, 0}, m_swapChain.GetSwapChainExtent()};
-    renderingInfo.layerCount = 1;
-    renderingInfo.colorAttachmentCount = 1;
-    renderingInfo.pColorAttachments = &colorAttachment;
-    renderingInfo.pDepthAttachment = &depthAttachment;
-
-    vkCmdBeginRendering(cmd, &renderingInfo);
-
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetGraphicsPipeline());
+        vkCmdPipelineBarrier(cmd, srcStage, dstStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+    };
 
     VkViewport viewport{};
     viewport.x = 0.0f;
@@ -327,61 +281,203 @@ void Renderer::Render()
     viewport.height = (float)m_swapChain.GetSwapChainExtent().height;
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
-    vkCmdSetViewport(cmd, 0, 1, &viewport);
 
     VkRect2D scissor{};
     scissor.offset = {0, 0};
     scissor.extent = m_swapChain.GetSwapChainExtent();
-    vkCmdSetScissor(cmd, 0, 1, &scissor);
 
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 0, 1, &m_descriptorManager.GetDescriptorSets()[imageIndex], 0, nullptr);
-
-    VkDescriptorSet lightDS = m_descriptorManager.GetLightDescriptorSet();
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 5, 1, &lightDS, 0, nullptr);
-
-    for (Object* obj : m_scene.GetObjects())
     {
-        if (obj && obj->IsActive())
+        struct { VkImage img; VkFormat fmt; } gbufferRTs[4] = {
+            { m_swapChain.GetPositionImage(),      m_swapChain.GetPositionFormat() },
+            { m_swapChain.GetNormalImage(),        m_swapChain.GetNormalFormat() },
+            { m_swapChain.GetAlbedoImage(),        m_swapChain.GetAlbedoFormat() },
+            { m_swapChain.GetMaterialImage(),      m_swapChain.GetMaterialFormat() }
+        };
+
+        for (int i = 0; i < 4; i++)
+            transitionImage(gbufferRTs[i].img, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+
+        transitionImage(m_swapChain.GetDepthImage(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+            VK_IMAGE_ASPECT_DEPTH_BIT, 0, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT);
+
+        VkRenderingAttachmentInfo gbufferAttachments[4]{};
+        VkClearValue clearBlack = {{{0.0f, 0.0f, 0.0f, 0.0f}}};
+        for (int i = 0; i < 4; i++)
         {
+            gbufferAttachments[i].sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+            gbufferAttachments[i].imageView = i == 0 ? m_swapChain.GetPositionImageView() :
+                                               i == 1 ? m_swapChain.GetNormalImageView() :
+                                               i == 2 ? m_swapChain.GetAlbedoImageView() :
+                                                        m_swapChain.GetMaterialImageView();
+            gbufferAttachments[i].imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            gbufferAttachments[i].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            gbufferAttachments[i].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+            gbufferAttachments[i].clearValue = clearBlack;
+        }
+
+        VkRenderingAttachmentInfo gbufferDepth{};
+        gbufferDepth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+        gbufferDepth.imageView = m_swapChain.GetDepthImageView();
+        gbufferDepth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        gbufferDepth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        gbufferDepth.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        gbufferDepth.clearValue.depthStencil = {1.0f, 0};
+
+        VkRenderingInfo gbufferRendering{};
+        gbufferRendering.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+        gbufferRendering.renderArea = {{0, 0}, m_swapChain.GetSwapChainExtent()};
+        gbufferRendering.layerCount = 1;
+        gbufferRendering.colorAttachmentCount = 4;
+        gbufferRendering.pColorAttachments = gbufferAttachments;
+        gbufferRendering.pDepthAttachment = &gbufferDepth;
+
+        vkCmdBeginRendering(cmd, &gbufferRendering);
+
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetGBufferPipeline());
+        vkCmdSetViewport(cmd, 0, 1, &viewport);
+        vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetGBufferPipelineLayout(), 0, 1, &m_descriptorManager.GetDescriptorSets()[imageIndex], 0, nullptr);
+
+        for (Object* obj : m_scene.GetObjects())
+        {
+            if (!obj || !obj->IsActive()) continue;
+
             uint32_t dynamicOffset = obj->GetUBOSlot() * m_resourceManager.GetObjectUBOStride();
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 1, 1, m_descriptorManager.GetPerObjectDescriptorSets().data(), 1, &dynamicOffset);
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetGBufferPipelineLayout(), 1, 1, m_descriptorManager.GetPerObjectDescriptorSets().data(), 1, &dynamicOffset);
 
             Material* material = obj->GetMaterial();
-            VkDescriptorSet textureDescriptorSet;
-            if (material && material->HasTexture() && material->GetDescriptorSet() != VK_NULL_HANDLE)
-            {
-                textureDescriptorSet = material->GetDescriptorSet();
-            }
-            else
-            {
-                textureDescriptorSet = m_descriptorManager.GetNullTextureDescriptorSet();
-            }
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 2, 1, &textureDescriptorSet, 0, nullptr);
+            VkDescriptorSet texDS = (material && material->HasTexture() && material->GetDescriptorSet() != VK_NULL_HANDLE)
+                ? material->GetDescriptorSet() : m_descriptorManager.GetNullTextureDescriptorSet();
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetGBufferPipelineLayout(), 2, 1, &texDS, 0, nullptr);
 
-            VkDescriptorSet normalMapDescriptorSet;
-            if (material && material->GetNormalMapDescriptorSet() != VK_NULL_HANDLE)
-            {
-                normalMapDescriptorSet = material->GetNormalMapDescriptorSet();
-            }
-            else
-            {
-                normalMapDescriptorSet = m_descriptorManager.GetNullNormalMapDescriptorSet();
-            }
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 3, 1, &normalMapDescriptorSet, 0, nullptr);
+            VkDescriptorSet normDS = (material && material->GetNormalMapDescriptorSet() != VK_NULL_HANDLE)
+                ? material->GetNormalMapDescriptorSet() : m_descriptorManager.GetNullNormalMapDescriptorSet();
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetGBufferPipelineLayout(), 3, 1, &normDS, 0, nullptr);
 
-            VkDescriptorSet heightMapDescriptorSet;
-            if (material && material->GetHeightMapDescriptorSet() != VK_NULL_HANDLE)
-            {
-                heightMapDescriptorSet = material->GetHeightMapDescriptorSet();
-            }
-            else
-            {
-                heightMapDescriptorSet = m_descriptorManager.GetNullHeightMapDescriptorSet();
-            }
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 4, 1, &heightMapDescriptorSet, 0, nullptr);
+            VkDescriptorSet heightDS = (material && material->GetHeightMapDescriptorSet() != VK_NULL_HANDLE)
+                ? material->GetHeightMapDescriptorSet() : m_descriptorManager.GetNullHeightMapDescriptorSet();
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetGBufferPipelineLayout(), 4, 1, &heightDS, 0, nullptr);
 
             obj->Draw(cmd, m_descriptorManager.GetPerObjectDescriptorSets()[0], m_resourceManager.GetObjectUBOStride());
         }
+
+        vkCmdEndRendering(cmd);
+    }
+
+    {
+        VkImage gbufferImages[5] = {
+            m_swapChain.GetPositionImage(),
+            m_swapChain.GetNormalImage(),
+            m_swapChain.GetAlbedoImage(),
+            m_swapChain.GetMaterialImage(),
+            m_swapChain.GetDepthImage()
+        };
+        for (int i = 0; i < 4; i++)
+            transitionImage(gbufferImages[i], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                VK_IMAGE_ASPECT_COLOR_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+
+        transitionImage(gbufferImages[4], VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            VK_IMAGE_ASPECT_DEPTH_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+            VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+
+        transitionImage(m_swapChain.GetLightingResultImage(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+
+        transitionImage(m_swapChain.GetEmissiveAccumImage(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+    }
+
+    {
+        VkRenderingAttachmentInfo lightingAttachments[2]{};
+        VkClearValue clearBlack = {{{0.0f, 0.0f, 0.0f, 0.0f}}};
+        lightingAttachments[0].sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+        lightingAttachments[0].imageView = m_swapChain.GetLightingResultImageView();
+        lightingAttachments[0].imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        lightingAttachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        lightingAttachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        lightingAttachments[0].clearValue = clearBlack;
+
+        lightingAttachments[1].sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+        lightingAttachments[1].imageView = m_swapChain.GetEmissiveAccumImageView();
+        lightingAttachments[1].imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        lightingAttachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        lightingAttachments[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        lightingAttachments[1].clearValue = clearBlack;
+
+        VkRenderingInfo lightingRendering{};
+        lightingRendering.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+        lightingRendering.renderArea = {{0, 0}, m_swapChain.GetSwapChainExtent()};
+        lightingRendering.layerCount = 1;
+        lightingRendering.colorAttachmentCount = 2;
+        lightingRendering.pColorAttachments = lightingAttachments;
+        lightingRendering.pDepthAttachment = nullptr;
+
+        vkCmdBeginRendering(cmd, &lightingRendering);
+
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetLightingPipeline());
+        vkCmdSetViewport(cmd, 0, 1, &viewport);
+        vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetLightingPipelineLayout(), 0, 1, &m_descriptorManager.GetDescriptorSets()[imageIndex], 0, nullptr);
+        VkDescriptorSet gbufferDS = m_descriptorManager.GetGBufferDescriptorSet();
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetLightingPipelineLayout(), 1, 1, &gbufferDS, 0, nullptr);
+        VkDescriptorSet lightDS = m_descriptorManager.GetLightDescriptorSet();
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetLightingPipelineLayout(), 2, 1, &lightDS, 0, nullptr);
+
+        vkCmdDraw(cmd, 3, 1, 0, 0);
+
+        vkCmdEndRendering(cmd);
+    }
+
+    {
+        transitionImage(m_swapChain.GetLightingResultImage(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            VK_IMAGE_ASPECT_COLOR_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+
+        transitionImage(m_swapChain.GetEmissiveAccumImage(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            VK_IMAGE_ASPECT_COLOR_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+
+        transitionImage(m_swapChain.GetSwapChainImages()[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+    }
+
+    {
+        VkRenderingAttachmentInfo compositeAttachment{};
+        compositeAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+        compositeAttachment.imageView = m_swapChain.GetSwapChainImageViews()[imageIndex];
+        compositeAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        compositeAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        compositeAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+        VkRenderingInfo compositeRendering{};
+        compositeRendering.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+        compositeRendering.renderArea = {{0, 0}, m_swapChain.GetSwapChainExtent()};
+        compositeRendering.layerCount = 1;
+        compositeRendering.colorAttachmentCount = 1;
+        compositeRendering.pColorAttachments = &compositeAttachment;
+        compositeRendering.pDepthAttachment = nullptr;
+
+        vkCmdBeginRendering(cmd, &compositeRendering);
+
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetCompositePipeline());
+        vkCmdSetViewport(cmd, 0, 1, &viewport);
+        vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+        VkDescriptorSet compositeDS = m_descriptorManager.GetCompositeDescriptorSet();
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetCompositePipelineLayout(), 0, 1, &compositeDS, 0, nullptr);
+        VkDescriptorSet emissiveDS = m_descriptorManager.GetEmissiveAccumDescriptorSet();
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetCompositePipelineLayout(), 1, 1, &emissiveDS, 0, nullptr);
+
+        vkCmdDraw(cmd, 3, 1, 0, 0);
     }
 
 #ifndef NDEBUG
@@ -499,18 +595,13 @@ void Renderer::Render()
     readBarrier.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
     vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0, 1, &readBarrier, 0, nullptr, 0, nullptr);
 
-    barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-    barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    barrier.dstAccessMask = 0;
-
-    vkCmdPipelineBarrier(cmd,
+    transitionImage(m_swapChain.GetSwapChainImages()[imageIndex],
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        VK_IMAGE_ASPECT_COLOR_BIT,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, 0,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-        0,
-        0, nullptr,
-        0, nullptr,
-        1, &barrier);
+        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
 
     vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, m_device.GetTimestampQueryPool(), 1);
 
@@ -579,6 +670,8 @@ void Renderer::Render()
     {
         m_framebufferResized = false;
         m_swapChain.Recreate(&m_device, m_window, &m_surface, &m_commandBufferManager, m_resourceManager.GetAllocator());
+        m_descriptorManager.UpdateGBufferDescriptorSet();
+        m_descriptorManager.UpdateCompositeDescriptorSet();
         return;
     }
     else if (result != VK_SUCCESS)

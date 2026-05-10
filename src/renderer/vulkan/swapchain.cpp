@@ -65,6 +65,7 @@ void SwapChain::Create(Device* device, GLFWwindow* window, Surface* surface, Vma
     m_swapChainExtent = extent;
 
     CreateDepthResources(device, m_allocator);
+    CreateGBufferResources(device, m_allocator);
 }
 
 void SwapChain::Recreate(Device* device, GLFWwindow* window, Surface* surface, CommandBufferManager* cmdManager, VmaAllocator allocator)
@@ -109,6 +110,17 @@ void SwapChain::Cleanup(Device* device)
         vkDestroyImageView(vkDevice, m_depthImageView, nullptr);
     if (m_depthImage != VK_NULL_HANDLE && m_depthImageAllocation != VK_NULL_HANDLE)
         vmaDestroyImage(m_allocator, m_depthImage, m_depthImageAllocation);
+
+    auto destroyGBufferImage = [&](VkImageView& view, VkImage& image, VmaAllocation& alloc) {
+        if (view != VK_NULL_HANDLE) vkDestroyImageView(vkDevice, view, nullptr);
+        if (image != VK_NULL_HANDLE && alloc != VK_NULL_HANDLE) vmaDestroyImage(m_allocator, image, alloc);
+    };
+    destroyGBufferImage(m_gPositionImageView, m_gPositionImage, m_gPositionAllocation);
+    destroyGBufferImage(m_gNormalImageView, m_gNormalImage, m_gNormalAllocation);
+    destroyGBufferImage(m_gAlbedoImageView, m_gAlbedoImage, m_gAlbedoAllocation);
+    destroyGBufferImage(m_gMaterialImageView, m_gMaterialImage, m_gMaterialAllocation);
+    destroyGBufferImage(m_emissiveAccumImageView, m_emissiveAccumImage, m_emissiveAccumAllocation);
+    destroyGBufferImage(m_lightingResultImageView, m_lightingResultImage, m_lightingResultAllocation);
 
     m_swapChainImageViews.clear();
 
@@ -187,7 +199,7 @@ void SwapChain::CreateDepthResources(Device* device, VmaAllocator allocator)
     imageInfo.format = m_depthFormat;
     imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
     imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
     imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
@@ -225,4 +237,60 @@ VkFormat SwapChain::GetDepthFormat()
 VkImage SwapChain::GetDepthImage()
 {
     return m_depthImage;
+}
+
+void SwapChain::CreateGBufferResources(Device* device, VmaAllocator allocator)
+{
+    VkDevice vkDevice = device->GetDevice();
+
+    auto createGBufferImage = [&](VkFormat format, VkImageUsageFlags extraUsage,
+        VkImage& outImage, VmaAllocation& outAlloc, VkImageView& outView) {
+        VkImageCreateInfo imageInfo{};
+        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.extent.width = m_swapChainExtent.width;
+        imageInfo.extent.height = m_swapChainExtent.height;
+        imageInfo.extent.depth = 1;
+        imageInfo.mipLevels = 1;
+        imageInfo.arrayLayers = 1;
+        imageInfo.format = format;
+        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        imageInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | extraUsage;
+        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        VmaAllocationCreateInfo allocInfo{};
+        allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+        if (vmaCreateImage(allocator, &imageInfo, &allocInfo, &outImage, &outAlloc, nullptr) != VK_SUCCESS)
+            throw std::runtime_error("failed to create G-buffer image!");
+
+        VkImageViewCreateInfo viewInfo{};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = outImage;
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = format;
+        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        viewInfo.subresourceRange.baseMipLevel = 0;
+        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.baseArrayLayer = 0;
+        viewInfo.subresourceRange.layerCount = 1;
+
+        if (vkCreateImageView(vkDevice, &viewInfo, nullptr, &outView) != VK_SUCCESS)
+            throw std::runtime_error("failed to create G-buffer image view!");
+    };
+
+    createGBufferImage(VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+        m_gPositionImage, m_gPositionAllocation, m_gPositionImageView);
+    createGBufferImage(VK_FORMAT_R16G16B16A16_SFLOAT, 0,
+        m_gNormalImage, m_gNormalAllocation, m_gNormalImageView);
+    createGBufferImage(VK_FORMAT_R8G8B8A8_SRGB, 0,
+        m_gAlbedoImage, m_gAlbedoAllocation, m_gAlbedoImageView);
+    createGBufferImage(VK_FORMAT_R8G8B8A8_UNORM, 0,
+        m_gMaterialImage, m_gMaterialAllocation, m_gMaterialImageView);
+    createGBufferImage(VK_FORMAT_R16G16B16A16_SFLOAT, 0,
+        m_emissiveAccumImage, m_emissiveAccumAllocation, m_emissiveAccumImageView);
+    createGBufferImage(VK_FORMAT_R16G16B16A16_SFLOAT, 0,
+        m_lightingResultImage, m_lightingResultAllocation, m_lightingResultImageView);
 }

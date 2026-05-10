@@ -44,6 +44,17 @@ public:
     VkDescriptorSet GetNullNormalMapDescriptorSet() const { return m_nullNormalMapDescriptorSet; }
     VkDescriptorSet GetNullHeightMapDescriptorSet() const { return m_nullHeightMapDescriptorSet; }
 
+    VkDescriptorSetLayout GetGBufferSetLayout() const { return m_gbufferSetLayout; }
+    VkDescriptorSetLayout GetCompositeSetLayout() const { return m_compositeSetLayout; }
+    VkDescriptorSet GetGBufferDescriptorSet() const { return m_gbufferDescriptorSet; }
+    VkDescriptorSet GetCompositeDescriptorSet() const { return m_compositeDescriptorSet; }
+    VkDescriptorSet GetEmissiveAccumDescriptorSet() const { return m_emissiveAccumDescriptorSet; }
+
+    void CreateGBufferDescriptorSet();
+    void CreateCompositeDescriptorSet();
+    void UpdateGBufferDescriptorSet();
+    void UpdateCompositeDescriptorSet();
+
     VkDescriptorSet CreateTextureDescriptorSet(Texture* texture);
     VkDescriptorSet CreateTextureDescriptorSet(TextureArray* textureArray);
     VkDescriptorSet CreateNormalMapDescriptorSet(Texture* texture);
@@ -72,4 +83,10 @@ private:
     VkImageView m_dummyImageView;
     VkDeviceMemory m_dummyImageMemory;
     VkDescriptorSet m_computeDescriptorSet;
+
+    VkDescriptorSetLayout m_gbufferSetLayout = VK_NULL_HANDLE;
+    VkDescriptorSetLayout m_compositeSetLayout = VK_NULL_HANDLE;
+    VkDescriptorSet m_gbufferDescriptorSet = VK_NULL_HANDLE;
+    VkDescriptorSet m_compositeDescriptorSet = VK_NULL_HANDLE;
+    VkDescriptorSet m_emissiveAccumDescriptorSet = VK_NULL_HANDLE;
 };
