@@ -24,7 +24,7 @@
 - [x] Point light (position, color, intensity, radius)
 - [x] Spotlight (position, direction, cone angle, penumbra)
 - [x] Light types enumeration and registry
-- [ ] Deferred shading G-buffer (position, normal, albedo, emissive)
+- [x] Deferred shading G-buffer (position, normal, albedo, emissive)
 - [ ] Forward+ / tiled rendering fallback
 - [ ] HDR pipeline (RGB16F framebuffer)
 - [ ] Tonemapping (ACES filmic)
