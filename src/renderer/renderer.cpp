@@ -237,10 +237,12 @@ void Renderer::Init(GLFWwindow *window, Input* input)
 
     m_descriptorManager.CreateGBufferDescriptorSet();
     m_descriptorManager.CreateCompositeDescriptorSet();
+    m_descriptorManager.CreateHdrDescriptorSet();
 
     m_pipelineManager.CreateGBufferPipeline(&m_device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetDescriptorSetLayout(1), m_descriptorManager.GetTextureSetLayout(), m_descriptorManager.GetNormalMapSetLayout(), m_descriptorManager.GetHeightMapSetLayout());
     m_pipelineManager.CreateLightingPipeline(&m_device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetGBufferSetLayout(), m_descriptorManager.GetLightSetLayout());
     m_pipelineManager.CreateCompositePipeline(&m_device, &m_swapChain, m_descriptorManager.GetCompositeSetLayout());
+    m_pipelineManager.CreateTonemapPipeline(&m_device, &m_swapChain, m_descriptorManager.GetCompositeSetLayout(), m_descriptorManager.GetDescriptorSetLayout(0));
 
     {
         VkExtent2D extent = m_swapChain.GetSwapChainExtent();
@@ -284,6 +286,7 @@ void Renderer::Render()
         m_swapChain.Recreate(&m_device, m_window, &m_surface, &m_commandBufferManager, m_resourceManager.GetAllocator());
         m_descriptorManager.UpdateGBufferDescriptorSet();
         m_descriptorManager.UpdateCompositeDescriptorSet();
+        m_descriptorManager.UpdateHdrDescriptorSet();
         return;
     }
     else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
@@ -519,7 +522,7 @@ void Renderer::Render()
             VK_IMAGE_ASPECT_COLOR_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 
-        transitionImage(m_swapChain.GetSwapChainImages()[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        transitionImage(m_swapChain.GetHdrColorImage(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
             VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
     }
@@ -527,7 +530,7 @@ void Renderer::Render()
     {
         VkRenderingAttachmentInfo compositeAttachment{};
         compositeAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-        compositeAttachment.imageView = m_swapChain.GetSwapChainImageViews()[imageIndex];
+        compositeAttachment.imageView = m_swapChain.GetHdrColorImageView();
         compositeAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         compositeAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
         compositeAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -552,11 +555,148 @@ void Renderer::Render()
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetCompositePipelineLayout(), 1, 1, &emissiveDS, 0, nullptr);
 
         vkCmdDraw(cmd, 3, 1, 0, 0);
+
+        vkCmdEndRendering(cmd);
+    }
+
+    {
+        VkDescriptorSet clusterDS = m_descriptorManager.GetClusterDescriptorSet();
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipelineManager.GetClusterCullPipeline());
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipelineManager.GetClusterCullPipelineLayout(), 0, 1, &m_descriptorManager.GetDescriptorSets()[imageIndex], 0, nullptr);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipelineManager.GetClusterCullPipelineLayout(), 1, 1, &clusterDS, 0, nullptr);
+        uint32_t groupCount = m_resourceManager.GetClusterCount();
+        vkCmdDispatch(cmd, groupCount, 1, 1);
+
+        VkMemoryBarrier clusterBarrier{};
+        clusterBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+        clusterBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+        clusterBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 1, &clusterBarrier, 0, nullptr, 0, nullptr);
+    }
+
+    {
+        VkRenderingAttachmentInfo forwardAttachment{};
+        forwardAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+        forwardAttachment.imageView = m_swapChain.GetHdrColorImageView();
+        forwardAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        forwardAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+        forwardAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+        VkRenderingAttachmentInfo forwardDepth{};
+        forwardDepth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+        forwardDepth.imageView = m_swapChain.GetDepthImageView();
+        forwardDepth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+        forwardDepth.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+        forwardDepth.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        forwardDepth.clearValue.depthStencil = {1.0f, 0};
+
+        VkRenderingInfo forwardRendering{};
+        forwardRendering.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+        forwardRendering.renderArea = {{0, 0}, m_swapChain.GetSwapChainExtent()};
+        forwardRendering.layerCount = 1;
+        forwardRendering.colorAttachmentCount = 1;
+        forwardRendering.pColorAttachments = &forwardAttachment;
+        forwardRendering.pDepthAttachment = &forwardDepth;
+
+        vkCmdBeginRendering(cmd, &forwardRendering);
+
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetClusteredForwardPipeline());
+        vkCmdSetViewport(cmd, 0, 1, &viewport);
+        vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetClusteredForwardPipelineLayout(), 0, 1, &m_descriptorManager.GetDescriptorSets()[imageIndex], 0, nullptr);
+        VkDescriptorSet clusterDS = m_descriptorManager.GetClusterDescriptorSet();
+
+        for (Object* obj : m_scene.GetObjects())
+        {
+            if (!obj || !obj->IsActive() || !obj->IsTransparent()) continue;
+
+            uint32_t dynamicOffset = obj->GetUBOSlot() * m_resourceManager.GetObjectUBOStride();
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetClusteredForwardPipelineLayout(), 1, 1, m_descriptorManager.GetPerObjectDescriptorSets().data(), 1, &dynamicOffset);
+
+            Material* material = obj->GetMaterial();
+            VkDescriptorSet texDS = (material && material->HasTexture() && material->GetDescriptorSet() != VK_NULL_HANDLE)
+                ? material->GetDescriptorSet() : m_descriptorManager.GetNullTextureDescriptorSet();
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetClusteredForwardPipelineLayout(), 2, 1, &texDS, 0, nullptr);
+
+            VkDescriptorSet normDS = (material && material->GetNormalMapDescriptorSet() != VK_NULL_HANDLE)
+                ? material->GetNormalMapDescriptorSet() : m_descriptorManager.GetNullNormalMapDescriptorSet();
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetClusteredForwardPipelineLayout(), 3, 1, &normDS, 0, nullptr);
+
+            VkDescriptorSet heightDS = (material && material->GetHeightMapDescriptorSet() != VK_NULL_HANDLE)
+                ? material->GetHeightMapDescriptorSet() : m_descriptorManager.GetNullHeightMapDescriptorSet();
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetClusteredForwardPipelineLayout(), 4, 1, &heightDS, 0, nullptr);
+
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetClusteredForwardPipelineLayout(), 5, 1, &clusterDS, 0, nullptr);
+
+            obj->Draw(cmd, m_descriptorManager.GetPerObjectDescriptorSets()[0], m_resourceManager.GetObjectUBOStride());
+        }
+
+        vkCmdEndRendering(cmd);
+    }
+
+    {
+        transitionImage(m_swapChain.GetHdrColorImage(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            VK_IMAGE_ASPECT_COLOR_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+
+        transitionImage(m_swapChain.GetSwapChainImages()[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+    }
+
+    {
+        VkRenderingAttachmentInfo tonemapAttachment{};
+        tonemapAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+        tonemapAttachment.imageView = m_swapChain.GetSwapChainImageViews()[imageIndex];
+        tonemapAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        tonemapAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        tonemapAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+        VkRenderingInfo tonemapRendering{};
+        tonemapRendering.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+        tonemapRendering.renderArea = {{0, 0}, m_swapChain.GetSwapChainExtent()};
+        tonemapRendering.layerCount = 1;
+        tonemapRendering.colorAttachmentCount = 1;
+        tonemapRendering.pColorAttachments = &tonemapAttachment;
+        tonemapRendering.pDepthAttachment = nullptr;
+
+        vkCmdBeginRendering(cmd, &tonemapRendering);
+
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetTonemapPipeline());
+        vkCmdSetViewport(cmd, 0, 1, &viewport);
+        vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+        VkDescriptorSet hdrDS = m_descriptorManager.GetHdrDescriptorSet();
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetTonemapPipelineLayout(), 0, 1, &hdrDS, 0, nullptr);
+        VkDescriptorSet perFrameDS = m_descriptorManager.GetDescriptorSets()[imageIndex];
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetTonemapPipelineLayout(), 1, 1, &perFrameDS, 0, nullptr);
+
+        vkCmdDraw(cmd, 3, 1, 0, 0);
+
+        vkCmdEndRendering(cmd);
     }
 
 #ifndef NDEBUG
     if (m_debugLightsEnabled)
     {
+        VkRenderingAttachmentInfo debugAttachment{};
+        debugAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+        debugAttachment.imageView = m_swapChain.GetSwapChainImageViews()[imageIndex];
+        debugAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        debugAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+        debugAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+        VkRenderingInfo debugRendering{};
+        debugRendering.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+        debugRendering.renderArea = {{0, 0}, m_swapChain.GetSwapChainExtent()};
+        debugRendering.layerCount = 1;
+        debugRendering.colorAttachmentCount = 1;
+        debugRendering.pColorAttachments = &debugAttachment;
+        debugRendering.pDepthAttachment = nullptr;
+
+        vkCmdBeginRendering(cmd, &debugRendering);
+
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetLinePipeline());
 
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetPipelineLayout(), 0, 1, &m_descriptorManager.GetDescriptorSets()[imageIndex], 0, nullptr);
@@ -641,86 +781,10 @@ void Renderer::Render()
         {
             m_resourceManager.FreeObjectSlot(slot);
         }
-    }
-#endif
-
-    vkCmdEndRendering(cmd);
-
-    {
-        VkDescriptorSet clusterDS = m_descriptorManager.GetClusterDescriptorSet();
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipelineManager.GetClusterCullPipeline());
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipelineManager.GetClusterCullPipelineLayout(), 0, 1, &m_descriptorManager.GetDescriptorSets()[imageIndex], 0, nullptr);
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipelineManager.GetClusterCullPipelineLayout(), 1, 1, &clusterDS, 0, nullptr);
-        uint32_t groupCount = m_resourceManager.GetClusterCount();
-        vkCmdDispatch(cmd, groupCount, 1, 1);
-
-        VkMemoryBarrier clusterBarrier{};
-        clusterBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-        clusterBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-        clusterBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 1, &clusterBarrier, 0, nullptr, 0, nullptr);
-    }
-
-    {
-        VkRenderingAttachmentInfo forwardAttachment{};
-        forwardAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-        forwardAttachment.imageView = m_swapChain.GetSwapChainImageViews()[imageIndex];
-        forwardAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        forwardAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-        forwardAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-
-        VkRenderingAttachmentInfo forwardDepth{};
-        forwardDepth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-        forwardDepth.imageView = m_swapChain.GetDepthImageView();
-        forwardDepth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
-        forwardDepth.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-        forwardDepth.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-        forwardDepth.clearValue.depthStencil = {1.0f, 0};
-
-        VkRenderingInfo forwardRendering{};
-        forwardRendering.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-        forwardRendering.renderArea = {{0, 0}, m_swapChain.GetSwapChainExtent()};
-        forwardRendering.layerCount = 1;
-        forwardRendering.colorAttachmentCount = 1;
-        forwardRendering.pColorAttachments = &forwardAttachment;
-        forwardRendering.pDepthAttachment = &forwardDepth;
-
-        vkCmdBeginRendering(cmd, &forwardRendering);
-
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetClusteredForwardPipeline());
-        vkCmdSetViewport(cmd, 0, 1, &viewport);
-        vkCmdSetScissor(cmd, 0, 1, &scissor);
-
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetClusteredForwardPipelineLayout(), 0, 1, &m_descriptorManager.GetDescriptorSets()[imageIndex], 0, nullptr);
-        VkDescriptorSet clusterDS = m_descriptorManager.GetClusterDescriptorSet();
-
-        for (Object* obj : m_scene.GetObjects())
-        {
-            if (!obj || !obj->IsActive() || !obj->IsTransparent()) continue;
-
-            uint32_t dynamicOffset = obj->GetUBOSlot() * m_resourceManager.GetObjectUBOStride();
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetClusteredForwardPipelineLayout(), 1, 1, m_descriptorManager.GetPerObjectDescriptorSets().data(), 1, &dynamicOffset);
-
-            Material* material = obj->GetMaterial();
-            VkDescriptorSet texDS = (material && material->HasTexture() && material->GetDescriptorSet() != VK_NULL_HANDLE)
-                ? material->GetDescriptorSet() : m_descriptorManager.GetNullTextureDescriptorSet();
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetClusteredForwardPipelineLayout(), 2, 1, &texDS, 0, nullptr);
-
-            VkDescriptorSet normDS = (material && material->GetNormalMapDescriptorSet() != VK_NULL_HANDLE)
-                ? material->GetNormalMapDescriptorSet() : m_descriptorManager.GetNullNormalMapDescriptorSet();
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetClusteredForwardPipelineLayout(), 3, 1, &normDS, 0, nullptr);
-
-            VkDescriptorSet heightDS = (material && material->GetHeightMapDescriptorSet() != VK_NULL_HANDLE)
-                ? material->GetHeightMapDescriptorSet() : m_descriptorManager.GetNullHeightMapDescriptorSet();
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetClusteredForwardPipelineLayout(), 4, 1, &heightDS, 0, nullptr);
-
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetClusteredForwardPipelineLayout(), 5, 1, &clusterDS, 0, nullptr);
-
-            obj->Draw(cmd, m_descriptorManager.GetPerObjectDescriptorSets()[0], m_resourceManager.GetObjectUBOStride());
-        }
 
         vkCmdEndRendering(cmd);
     }
+#endif
 
     {
         VkRenderingAttachmentInfo imguiAttachment{};
@@ -811,6 +875,7 @@ void Renderer::Render()
         m_swapChain.Recreate(&m_device, m_window, &m_surface, &m_commandBufferManager, m_resourceManager.GetAllocator());
         m_descriptorManager.UpdateGBufferDescriptorSet();
         m_descriptorManager.UpdateCompositeDescriptorSet();
+        m_descriptorManager.UpdateHdrDescriptorSet();
         return;
     }
     else if (result != VK_SUCCESS)

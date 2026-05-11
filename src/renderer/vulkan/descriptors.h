@@ -61,6 +61,10 @@ public:
     VkDescriptorSetLayout GetClusterSetLayout() const { return m_clusterSetLayout; }
     VkDescriptorSet GetClusterDescriptorSet() const { return m_clusterDescriptorSet; }
 
+    VkDescriptorSet GetHdrDescriptorSet() const { return m_hdrDescriptorSet; }
+    void CreateHdrDescriptorSet();
+    void UpdateHdrDescriptorSet();
+
 private:
     Device* m_device;
     SwapChain* m_swapChain;
@@ -91,4 +95,6 @@ private:
 
     VkDescriptorSetLayout m_clusterSetLayout = VK_NULL_HANDLE;
     VkDescriptorSet m_clusterDescriptorSet = VK_NULL_HANDLE;
+
+    VkDescriptorSet m_hdrDescriptorSet = VK_NULL_HANDLE;
 };

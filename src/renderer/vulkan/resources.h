@@ -22,7 +22,8 @@ struct PerFrameUBO
     alignas(16) glm::vec3 cameraPos;
     alignas(4) float nearPlane;
     alignas(4) float farPlane;
-    alignas(8) glm::vec2 padding2;
+    alignas(4) float exposure;
+    alignas(4) float pad;
 };
 
 struct LightUBO
@@ -81,6 +82,8 @@ public:
 
     void UpdatePerFrameUBO(uint32_t currentImage, Camera& camera);
     void UpdatePerObjectUBO(uint32_t slot, const PerObjectUBO& data);
+    void SetExposure(float exposure) { m_exposure = exposure; }
+    float GetExposure() const { return m_exposure; }
     uint32_t AllocateObjectSlot();
     void FreeObjectSlot(uint32_t slot);
 
@@ -133,4 +136,5 @@ private:
 
     uint32_t m_clusterCount = 0;
     static const uint32_t MAX_LIGHTS_PER_CLUSTER = 64;
+    float m_exposure = 1.0f;
 };

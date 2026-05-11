@@ -111,6 +111,7 @@ void ResourceManager::UpdatePerFrameUBO(uint32_t currentImage, Camera& camera)
     ubo.cameraPos = camera.GetPosition();
     ubo.nearPlane = camera.GetNearPlane();
     ubo.farPlane = camera.GetFarPlane();
+    ubo.exposure = m_exposure;
 
     void* data;
     vmaMapMemory(m_allocator, m_perFrameAllocations[currentImage], &data);

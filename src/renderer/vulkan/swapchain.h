@@ -51,6 +51,10 @@ public:
     VkImage GetLightingResultImage() const { return m_lightingResultImage; }
     VkFormat GetLightingResultFormat() const { return VK_FORMAT_R16G16B16A16_SFLOAT; }
 
+    VkImageView GetHdrColorImageView() const { return m_hdrColorImageView; }
+    VkImage GetHdrColorImage() const { return m_hdrColorImage; }
+    VkFormat GetHdrColorFormat() const { return VK_FORMAT_R16G16B16A16_SFLOAT; }
+
 private:
     Device* m_device = nullptr;
     VmaAllocator m_allocator = VK_NULL_HANDLE;
@@ -90,4 +94,8 @@ private:
     VkImage m_lightingResultImage = VK_NULL_HANDLE;
     VmaAllocation m_lightingResultAllocation = VK_NULL_HANDLE;
     VkImageView m_lightingResultImageView = VK_NULL_HANDLE;
+
+    VkImage m_hdrColorImage = VK_NULL_HANDLE;
+    VmaAllocation m_hdrColorAllocation = VK_NULL_HANDLE;
+    VkImageView m_hdrColorImageView = VK_NULL_HANDLE;
 };

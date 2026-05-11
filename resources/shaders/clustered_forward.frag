@@ -270,6 +270,5 @@ void main()
     }
 
     vec3 color = ambient + lighting;
-    color = color / (color + vec3(1.0));
     outColor = vec4(color, alpha);
 }

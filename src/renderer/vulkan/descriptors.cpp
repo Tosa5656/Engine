@@ -835,6 +835,42 @@ void DescriptorsManager::CreateCompositeDescriptorSet()
     vkUpdateDescriptorSets(m_device->GetDevice(), 1, &emissiveWrite, 0, nullptr);
 }
 
+void DescriptorsManager::CreateHdrDescriptorSet()
+{
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = m_descriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = &m_compositeSetLayout;
+
+    if (vkAllocateDescriptorSets(m_device->GetDevice(), &allocInfo, &m_hdrDescriptorSet) != VK_SUCCESS)
+        throw std::runtime_error("failed to allocate HDR descriptor set!");
+
+    UpdateHdrDescriptorSet();
+}
+
+void DescriptorsManager::UpdateHdrDescriptorSet()
+{
+    if (m_hdrDescriptorSet == VK_NULL_HANDLE) return;
+
+    VkDescriptorImageInfo imageInfo{};
+    imageInfo.sampler = m_dummySampler;
+    imageInfo.imageView = m_swapChain->GetHdrColorImageView();
+    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkWriteDescriptorSet write{};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.pNext = nullptr;
+    write.dstSet = m_hdrDescriptorSet;
+    write.dstBinding = 0;
+    write.dstArrayElement = 0;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write.descriptorCount = 1;
+    write.pImageInfo = &imageInfo;
+
+    vkUpdateDescriptorSets(m_device->GetDevice(), 1, &write, 0, nullptr);
+}
+
 void DescriptorsManager::UpdateGBufferDescriptorSet()
 {
     if (m_gbufferDescriptorSet == VK_NULL_HANDLE) return;

@@ -43,6 +43,11 @@ public:
     VkPipelineLayout GetClusterCullPipelineLayout() const { return m_clusterCullPipelineLayout; }
     VkPipeline GetClusteredForwardPipeline() const { return m_clusteredForwardPipeline; }
     VkPipelineLayout GetClusteredForwardPipelineLayout() const { return m_clusteredForwardPipelineLayout; }
+
+    void CreateTonemapPipeline(Device* device, SwapChain* swapChain, VkDescriptorSetLayout hdrSetLayout, VkDescriptorSetLayout perFrameSetLayout);
+    VkPipeline GetTonemapPipeline() const { return m_tonemapPipeline; }
+    VkPipelineLayout GetTonemapPipelineLayout() const { return m_tonemapPipelineLayout; }
+
 private:
     std::vector<char> ReadFile(const std::string& filename);
 
@@ -62,4 +67,7 @@ private:
     VkPipeline m_clusterCullPipeline = VK_NULL_HANDLE;
     VkPipelineLayout m_clusteredForwardPipelineLayout = VK_NULL_HANDLE;
     VkPipeline m_clusteredForwardPipeline = VK_NULL_HANDLE;
+
+    VkPipelineLayout m_tonemapPipelineLayout = VK_NULL_HANDLE;
+    VkPipeline m_tonemapPipeline = VK_NULL_HANDLE;
 };

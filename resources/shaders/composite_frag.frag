@@ -13,7 +13,6 @@ void main()
     vec3 emissive = texture(emissiveAccum, fragUV).rgb;
 
     vec3 color = lighting + emissive;
-    color = color / (color + vec3(1.0));
 
     outColor = vec4(color, 1.0);
 }

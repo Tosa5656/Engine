@@ -121,6 +121,7 @@ void SwapChain::Cleanup(Device* device)
     destroyGBufferImage(m_gMaterialImageView, m_gMaterialImage, m_gMaterialAllocation);
     destroyGBufferImage(m_emissiveAccumImageView, m_emissiveAccumImage, m_emissiveAccumAllocation);
     destroyGBufferImage(m_lightingResultImageView, m_lightingResultImage, m_lightingResultAllocation);
+    destroyGBufferImage(m_hdrColorImageView, m_hdrColorImage, m_hdrColorAllocation);
 
     m_swapChainImageViews.clear();
 
@@ -293,4 +294,6 @@ void SwapChain::CreateGBufferResources(Device* device, VmaAllocator allocator)
         m_emissiveAccumImage, m_emissiveAccumAllocation, m_emissiveAccumImageView);
     createGBufferImage(VK_FORMAT_R16G16B16A16_SFLOAT, 0,
         m_lightingResultImage, m_lightingResultAllocation, m_lightingResultImageView);
+    createGBufferImage(VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+        m_hdrColorImage, m_hdrColorAllocation, m_hdrColorImageView);
 }
