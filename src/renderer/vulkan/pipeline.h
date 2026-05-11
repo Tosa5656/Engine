@@ -25,6 +25,8 @@ public:
     void CreateGBufferPipeline(Device* device, SwapChain* swapChain, VkDescriptorSetLayout perFrameSetLayout, VkDescriptorSetLayout perObjectSetLayout, VkDescriptorSetLayout textureSetLayout, VkDescriptorSetLayout normalMapSetLayout, VkDescriptorSetLayout heightMapSetLayout);
     void CreateLightingPipeline(Device* device, SwapChain* swapChain, VkDescriptorSetLayout perFrameSetLayout, VkDescriptorSetLayout gbufferSetLayout, VkDescriptorSetLayout lightSetLayout);
     void CreateCompositePipeline(Device* device, SwapChain* swapChain, VkDescriptorSetLayout compositeSetLayout);
+    void CreateClusterCullPipeline(Device* device, VkDescriptorSetLayout perFrameSetLayout, VkDescriptorSetLayout clusterSetLayout);
+    void CreateClusteredForwardPipeline(Device* device, SwapChain* swapChain, VkDescriptorSetLayout perFrameSetLayout, VkDescriptorSetLayout perObjectSetLayout, VkDescriptorSetLayout textureSetLayout, VkDescriptorSetLayout normalMapSetLayout, VkDescriptorSetLayout heightMapSetLayout, VkDescriptorSetLayout clusterSetLayout);
     void Shutdown(Device* device);
     VkShaderModule CreateShaderModule(const std::vector<char> &code, Device* device);
 
@@ -37,6 +39,10 @@ public:
     VkPipelineLayout GetLightingPipelineLayout() const { return m_lightingPipelineLayout; }
     VkPipeline GetCompositePipeline() const { return m_compositePipeline; }
     VkPipelineLayout GetCompositePipelineLayout() const { return m_compositePipelineLayout; }
+    VkPipeline GetClusterCullPipeline() const { return m_clusterCullPipeline; }
+    VkPipelineLayout GetClusterCullPipelineLayout() const { return m_clusterCullPipelineLayout; }
+    VkPipeline GetClusteredForwardPipeline() const { return m_clusteredForwardPipeline; }
+    VkPipelineLayout GetClusteredForwardPipelineLayout() const { return m_clusteredForwardPipelineLayout; }
 private:
     std::vector<char> ReadFile(const std::string& filename);
 
@@ -51,4 +57,9 @@ private:
     VkPipeline m_lightingPipeline = VK_NULL_HANDLE;
     VkPipelineLayout m_compositePipelineLayout = VK_NULL_HANDLE;
     VkPipeline m_compositePipeline = VK_NULL_HANDLE;
+
+    VkPipelineLayout m_clusterCullPipelineLayout = VK_NULL_HANDLE;
+    VkPipeline m_clusterCullPipeline = VK_NULL_HANDLE;
+    VkPipelineLayout m_clusteredForwardPipelineLayout = VK_NULL_HANDLE;
+    VkPipeline m_clusteredForwardPipeline = VK_NULL_HANDLE;
 };

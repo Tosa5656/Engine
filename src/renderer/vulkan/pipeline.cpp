@@ -681,6 +681,164 @@ void PipelineManager::CreateCompositePipeline(Device* device, SwapChain* swapCha
     vkDestroyShaderModule(device->GetDevice(), vertShaderModule, nullptr);
 }
 
+void PipelineManager::CreateClusterCullPipeline(Device* device, VkDescriptorSetLayout perFrameSetLayout, VkDescriptorSetLayout clusterSetLayout)
+{
+    auto compShaderCode = ReadFile("shaders/cluster_cull.spv");
+    VkShaderModule compShaderModule = CreateShaderModule(compShaderCode, device);
+
+    VkPipelineShaderStageCreateInfo compStage{};
+    compStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    compStage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+    compStage.module = compShaderModule;
+    compStage.pName = "main";
+
+    VkDescriptorSetLayout setLayouts[] = { perFrameSetLayout, clusterSetLayout };
+
+    VkPipelineLayoutCreateInfo layoutInfo{};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    layoutInfo.setLayoutCount = 2;
+    layoutInfo.pSetLayouts = setLayouts;
+
+    if (vkCreatePipelineLayout(device->GetDevice(), &layoutInfo, nullptr, &m_clusterCullPipelineLayout) != VK_SUCCESS)
+        throw std::runtime_error("failed to create cluster cull pipeline layout!");
+
+    VkComputePipelineCreateInfo pipelineInfo{};
+    pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+    pipelineInfo.stage = compStage;
+    pipelineInfo.layout = m_clusterCullPipelineLayout;
+
+    if (vkCreateComputePipelines(device->GetDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_clusterCullPipeline) != VK_SUCCESS)
+        throw std::runtime_error("failed to create cluster cull pipeline!");
+
+    vkDestroyShaderModule(device->GetDevice(), compShaderModule, nullptr);
+}
+
+void PipelineManager::CreateClusteredForwardPipeline(Device* device, SwapChain* swapChain, VkDescriptorSetLayout perFrameSetLayout, VkDescriptorSetLayout perObjectSetLayout, VkDescriptorSetLayout textureSetLayout, VkDescriptorSetLayout normalMapSetLayout, VkDescriptorSetLayout heightMapSetLayout, VkDescriptorSetLayout clusterSetLayout)
+{
+    auto vertShaderCode = ReadFile("shaders/vertex.spv");
+    auto fragShaderCode = ReadFile("shaders/clustered_forward.spv");
+
+    VkShaderModule vertShaderModule = CreateShaderModule(vertShaderCode, device);
+    VkShaderModule fragShaderModule = CreateShaderModule(fragShaderCode, device);
+
+    VkPipelineShaderStageCreateInfo vertStage{};
+    vertStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    vertStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    vertStage.module = vertShaderModule;
+    vertStage.pName = "main";
+
+    VkPipelineShaderStageCreateInfo fragStage{};
+    fragStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    fragStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    fragStage.module = fragShaderModule;
+    fragStage.pName = "main";
+
+    VkPipelineShaderStageCreateInfo stages[] = { vertStage, fragStage };
+
+    auto bindingDescription = MeshVertex::getBindingDescription();
+    auto attributeDescriptions = MeshVertex::getAttributeDescriptions();
+
+    VkPipelineVertexInputStateCreateInfo vertexInput{};
+    vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vertexInput.vertexBindingDescriptionCount = 1;
+    vertexInput.pVertexBindingDescriptions = &bindingDescription;
+    vertexInput.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+    vertexInput.pVertexAttributeDescriptions = attributeDescriptions.data();
+
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+    inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+    VkDynamicState dynamicStates[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+    VkPipelineDynamicStateCreateInfo dynamicState{};
+    dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamicState.dynamicStateCount = 2;
+    dynamicState.pDynamicStates = dynamicStates;
+
+    VkPipelineViewportStateCreateInfo viewportState{};
+    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewportState.viewportCount = 1;
+    viewportState.scissorCount = 1;
+
+    VkPipelineRasterizationStateCreateInfo rasterizer{};
+    rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rasterizer.depthClampEnable = VK_FALSE;
+    rasterizer.rasterizerDiscardEnable = VK_FALSE;
+    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterizer.lineWidth = 1.0f;
+    rasterizer.cullMode = VK_CULL_MODE_NONE;
+    rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+
+    VkPipelineMultisampleStateCreateInfo multisampling{};
+    multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisampling.sampleShadingEnable = VK_FALSE;
+    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+    colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    colorBlendAttachment.blendEnable = VK_TRUE;
+    colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+    colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+
+    VkPipelineColorBlendStateCreateInfo colorBlending{};
+    colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    colorBlending.logicOpEnable = VK_FALSE;
+    colorBlending.attachmentCount = 1;
+    colorBlending.pAttachments = &colorBlendAttachment;
+
+    VkDescriptorSetLayout setLayouts[] = { perFrameSetLayout, perObjectSetLayout, textureSetLayout, normalMapSetLayout, heightMapSetLayout, clusterSetLayout };
+
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutInfo.setLayoutCount = 6;
+    pipelineLayoutInfo.pSetLayouts = setLayouts;
+
+    if (vkCreatePipelineLayout(device->GetDevice(), &pipelineLayoutInfo, nullptr, &m_clusteredForwardPipelineLayout) != VK_SUCCESS)
+        throw std::runtime_error("failed to create clustered forward pipeline layout!");
+
+    VkFormat swapchainFormat = swapChain->GetSwapChainImageFormat();
+    VkFormat depthFormat = swapChain->GetDepthFormat();
+
+    VkPipelineRenderingCreateInfo renderingInfo{};
+    renderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+    renderingInfo.colorAttachmentCount = 1;
+    renderingInfo.pColorAttachmentFormats = &swapchainFormat;
+    renderingInfo.depthAttachmentFormat = depthFormat;
+
+    VkPipelineDepthStencilStateCreateInfo depthStencil{};
+    depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depthStencil.depthTestEnable = VK_TRUE;
+    depthStencil.depthWriteEnable = VK_FALSE;
+    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+
+    VkGraphicsPipelineCreateInfo pipelineInfo{};
+    pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipelineInfo.pNext = &renderingInfo;
+    pipelineInfo.stageCount = 2;
+    pipelineInfo.pStages = stages;
+    pipelineInfo.pVertexInputState = &vertexInput;
+    pipelineInfo.pInputAssemblyState = &inputAssembly;
+    pipelineInfo.pViewportState = &viewportState;
+    pipelineInfo.pRasterizationState = &rasterizer;
+    pipelineInfo.pMultisampleState = &multisampling;
+    pipelineInfo.pDepthStencilState = &depthStencil;
+    pipelineInfo.pColorBlendState = &colorBlending;
+    pipelineInfo.pDynamicState = &dynamicState;
+    pipelineInfo.layout = m_clusteredForwardPipelineLayout;
+    pipelineInfo.renderPass = VK_NULL_HANDLE;
+    pipelineInfo.subpass = 0;
+
+    if (vkCreateGraphicsPipelines(device->GetDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_clusteredForwardPipeline) != VK_SUCCESS)
+        throw std::runtime_error("failed to create clustered forward pipeline!");
+
+    vkDestroyShaderModule(device->GetDevice(), fragShaderModule, nullptr);
+    vkDestroyShaderModule(device->GetDevice(), vertShaderModule, nullptr);
+}
+
 void PipelineManager::Shutdown(Device* device)
 {
     if (m_compositePipeline != VK_NULL_HANDLE)
@@ -727,6 +885,26 @@ void PipelineManager::Shutdown(Device* device)
     {
         vkDestroyPipelineLayout(device->GetDevice(), m_pipelineLayout, nullptr);
         m_pipelineLayout = VK_NULL_HANDLE;
+    }
+    if (m_clusterCullPipeline != VK_NULL_HANDLE)
+    {
+        vkDestroyPipeline(device->GetDevice(), m_clusterCullPipeline, nullptr);
+        m_clusterCullPipeline = VK_NULL_HANDLE;
+    }
+    if (m_clusterCullPipelineLayout != VK_NULL_HANDLE)
+    {
+        vkDestroyPipelineLayout(device->GetDevice(), m_clusterCullPipelineLayout, nullptr);
+        m_clusterCullPipelineLayout = VK_NULL_HANDLE;
+    }
+    if (m_clusteredForwardPipeline != VK_NULL_HANDLE)
+    {
+        vkDestroyPipeline(device->GetDevice(), m_clusteredForwardPipeline, nullptr);
+        m_clusteredForwardPipeline = VK_NULL_HANDLE;
+    }
+    if (m_clusteredForwardPipelineLayout != VK_NULL_HANDLE)
+    {
+        vkDestroyPipelineLayout(device->GetDevice(), m_clusteredForwardPipelineLayout, nullptr);
+        m_clusteredForwardPipelineLayout = VK_NULL_HANDLE;
     }
 }
 

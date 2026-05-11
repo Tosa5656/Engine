@@ -26,15 +26,11 @@ public:
     void CreateDescriptorPool();
     void CreateDescriptorSets();
     void CreateDescriptorSetLayout();
-    void CreateComputeDescriptorSetLayout();
-    void CreateComputeDescriptorSet();
 
     VkDescriptorPool GetDescriptorPool();
     VkDescriptorSetLayout GetDescriptorSetLayout(uint32_t index);
     std::vector<VkDescriptorSet> GetDescriptorSets();
     std::vector<VkDescriptorSet> GetPerObjectDescriptorSets();
-    VkDescriptorSetLayout GetComputeDescriptorSetLayout();
-    VkDescriptorSet GetComputeDescriptorSet();
     VkDescriptorSetLayout GetTextureSetLayout() const { return m_textureSetLayout; }
     VkDescriptorSetLayout GetLightSetLayout() const { return m_lightSetLayout; }
     VkDescriptorSet GetLightDescriptorSet() const { return m_lightDescriptorSet; }
@@ -60,6 +56,11 @@ public:
     VkDescriptorSet CreateNormalMapDescriptorSet(Texture* texture);
     VkDescriptorSet CreateHeightMapDescriptorSet(Texture* texture);
 
+    void CreateClusterSetLayout();
+    void CreateClusterDescriptorSet();
+    VkDescriptorSetLayout GetClusterSetLayout() const { return m_clusterSetLayout; }
+    VkDescriptorSet GetClusterDescriptorSet() const { return m_clusterDescriptorSet; }
+
 private:
     Device* m_device;
     SwapChain* m_swapChain;
@@ -70,7 +71,6 @@ private:
     std::vector<VkDescriptorSet> m_perObjectDescriptorSets;
     VkDescriptorSetLayout m_perFrameSetLayout;
     VkDescriptorSetLayout m_perObjectSetLayout;
-    VkDescriptorSetLayout m_computeSetLayout;
     VkDescriptorSetLayout m_textureSetLayout;
     VkDescriptorSetLayout m_lightSetLayout = VK_NULL_HANDLE;
     VkDescriptorSet m_lightDescriptorSet = VK_NULL_HANDLE;
@@ -82,11 +82,13 @@ private:
     VkSampler m_dummySampler;
     VkImageView m_dummyImageView;
     VkDeviceMemory m_dummyImageMemory;
-    VkDescriptorSet m_computeDescriptorSet;
 
     VkDescriptorSetLayout m_gbufferSetLayout = VK_NULL_HANDLE;
     VkDescriptorSetLayout m_compositeSetLayout = VK_NULL_HANDLE;
     VkDescriptorSet m_gbufferDescriptorSet = VK_NULL_HANDLE;
     VkDescriptorSet m_compositeDescriptorSet = VK_NULL_HANDLE;
     VkDescriptorSet m_emissiveAccumDescriptorSet = VK_NULL_HANDLE;
+
+    VkDescriptorSetLayout m_clusterSetLayout = VK_NULL_HANDLE;
+    VkDescriptorSet m_clusterDescriptorSet = VK_NULL_HANDLE;
 };

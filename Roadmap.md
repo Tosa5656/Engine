@@ -25,7 +25,8 @@
 - [x] Spotlight (position, direction, cone angle, penumbra)
 - [x] Light types enumeration and registry
 - [x] Deferred shading G-buffer (position, normal, albedo, emissive)
-- [ ] Forward+ / tiled rendering fallback
+- [x] Forward+ / tiled rendering fallback
+- [x] Clustered Forward
 - [ ] HDR pipeline (RGB16F framebuffer)
 - [ ] Tonemapping (ACES filmic)
 - [ ] Exposure control (auto-exposure, manual)

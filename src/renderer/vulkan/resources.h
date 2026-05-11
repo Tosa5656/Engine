@@ -13,12 +13,16 @@
 #include <renderer/vulkan/swapchain.h>
 #include <renderer/vulkan/camera.h>
 
+static const uint32_t MAX_LIGHTS = 1024;
+
 struct PerFrameUBO
 {
     alignas(16) glm::mat4 view;
     alignas(16) glm::mat4 proj;
     alignas(16) glm::vec3 cameraPos;
-    float padding;
+    alignas(4) float nearPlane;
+    alignas(4) float farPlane;
+    alignas(8) glm::vec2 padding2;
 };
 
 struct LightUBO
@@ -49,6 +53,16 @@ struct PerObjectUBO
     int parallaxMode;
     float parallaxScale;
     int parallaxIterations;
+    alignas(4) float alphaCutoff;
+    alignas(4) int alphaMode;
+};
+
+struct ClusterGridBuffer
+{
+    alignas(4) uint32_t tileCountX;
+    alignas(4) uint32_t tileCountY;
+    alignas(4) uint32_t clusterCount;
+    alignas(4) uint32_t depthSlices;
 };
 
 class ResourceManager
@@ -79,17 +93,18 @@ public:
     uint32_t GetObjectUBOStride() const { return m_objectUBOStride; }
     VmaAllocator GetAllocator();
 
-    void CreateLightBuffer(uint32_t maxLights);
+    void CreateLightBuffers();
     void UpdateLightBuffer(const std::vector<LightUBO>& lights, int lightCount);
-    VkBuffer GetLightBuffer() const { return m_lightBuffer; }
+    VkBuffer GetLightSSBO() const { return m_lightSSBO; }
     VkDeviceSize GetLightBufferSize() const { return m_lightBufferSize; }
+    VkBuffer GetClusterCountSSBO() const { return m_clusterCountSSBO; }
+    VkBuffer GetClusterIndexSSBO() const { return m_clusterIndexSSBO; }
+    VkBuffer GetClusterGridInfoUBO() const { return m_clusterGridInfoUBO; }
 
-    void CreateComputeResultBuffer();
-    VkBuffer GetComputeResultBuffer() const { return m_computeResultBuffer; }
-    VmaAllocation GetComputeResultBufferAllocation() const { return m_computeResultAllocation; }
-    VkBuffer GetComputeStagingBuffer() const { return m_computeStagingBuffer; }
-    VmaAllocation GetComputeStagingBufferAllocation() const { return m_computeStagingAllocation; }
-    void ReadComputeResult(float& outResult);
+    void CreateClusterGrid(uint32_t tileCountX, uint32_t tileCountY, uint32_t depthSlices);
+    void UpdateClusterGridInfo(const ClusterGridBuffer& info);
+
+    uint32_t GetClusterCount() const { return m_clusterCount; }
 
 private:
     Device* m_device;
@@ -105,12 +120,17 @@ private:
     std::vector<uint32_t> m_freeSlots;
     VmaAllocator m_allocator = VK_NULL_HANDLE;
 
-    VkBuffer m_lightBuffer = VK_NULL_HANDLE;
+    VkBuffer m_lightSSBO = VK_NULL_HANDLE;
     VmaAllocation m_lightAllocation = VK_NULL_HANDLE;
     VkDeviceSize m_lightBufferSize = 0;
 
-    VkBuffer m_computeResultBuffer = VK_NULL_HANDLE;
-    VmaAllocation m_computeResultAllocation = VK_NULL_HANDLE;
-    VkBuffer m_computeStagingBuffer = VK_NULL_HANDLE;
-    VmaAllocation m_computeStagingAllocation = VK_NULL_HANDLE;
+    VkBuffer m_clusterCountSSBO = VK_NULL_HANDLE;
+    VmaAllocation m_clusterCountAllocation = VK_NULL_HANDLE;
+    VkBuffer m_clusterIndexSSBO = VK_NULL_HANDLE;
+    VmaAllocation m_clusterIndexAllocation = VK_NULL_HANDLE;
+    VkBuffer m_clusterGridInfoUBO = VK_NULL_HANDLE;
+    VmaAllocation m_clusterGridInfoAllocation = VK_NULL_HANDLE;
+
+    uint32_t m_clusterCount = 0;
+    static const uint32_t MAX_LIGHTS_PER_CLUSTER = 64;
 };

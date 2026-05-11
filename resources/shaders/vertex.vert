@@ -21,7 +21,9 @@ layout(set = 0, binding = 0) uniform PerFrameUBO
     mat4 view;
     mat4 proj;
     vec3 cameraPos;
-    float padding;
+    float nearPlane;
+    float farPlane;
+    vec2 padding;
 } perFrame;
 
 layout(set = 1, binding = 0) uniform PerObjectUBO
@@ -37,6 +39,8 @@ layout(set = 1, binding = 0) uniform PerObjectUBO
     int parallaxMode;
     float parallaxScale;
     int parallaxIterations;
+    float alphaCutoff;
+    int alphaMode;
 } perObject;
 
 void main()

@@ -14,6 +14,8 @@ Material::Material()
     m_data.parallaxMode = static_cast<int>(ParallaxMode::ReliefMapping);
     m_data.parallaxScale = 0.1f;
     m_data.parallaxIterations = 32;
+    m_data.alphaCutoff = 0.5f;
+    m_data.alphaMode = 0;
 }
 
 Material::Material(glm::vec3 albedo, float metallic, float roughness, float ao, float normalStrength)
@@ -27,6 +29,8 @@ Material::Material(glm::vec3 albedo, float metallic, float roughness, float ao, 
     m_data.parallaxMode = static_cast<int>(ParallaxMode::ReliefMapping);
     m_data.parallaxScale = 0.1f;
     m_data.parallaxIterations = 32;
+    m_data.alphaCutoff = 0.5f;
+    m_data.alphaMode = 0;
 }
 
 Material::~Material() = default;

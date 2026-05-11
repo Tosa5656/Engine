@@ -31,7 +31,6 @@
 #include <renderer/vulkan/object.h>
 #include <renderer/vulkan/material.h>
 #include <renderer/vulkan/camera.h>
-#include <renderer/vulkan/computepipeline.h>
 #include <renderer/vulkan/scene.h>
 #include <renderer/vulkan/texture.h>
 #include <renderer/vulkan/texturearray.h>
@@ -105,13 +104,14 @@ private:
     Material m_material;
     Material m_material2;
     Material m_material3;
+    Material m_material4;
+    Material m_material5;
     TextureArray m_textureAtlas;
     Texture m_singleTexture;
     Texture m_normalMap;
     Texture m_heightMap;
     Input* m_input;
 
-    ComputePipeline m_computePipeline;
     GUI m_gui;
 
 #ifndef NDEBUG
@@ -120,8 +120,6 @@ private:
     Mesh m_debugArrow;
     bool m_debugLightsEnabled = true;
 #endif
-    bool m_computeResultPrinted = false;
-
     std::array<VkSemaphore, MAX_FRAMES_IN_FLIGHT> m_imageAvailableSemaphores;
     std::vector<VkSemaphore> m_renderFinishedSemaphores;
     std::array<VkFence, MAX_FRAMES_IN_FLIGHT> m_inFlightFences;

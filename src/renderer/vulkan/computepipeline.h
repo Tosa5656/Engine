@@ -14,7 +14,7 @@ public:
     ComputePipeline();
     ~ComputePipeline();
 
-    void Create(Device* device, const std::string& compShaderPath, VkDescriptorSetLayout setLayout);
+    void Create(Device* device, const std::string& compShaderPath, const std::vector<VkDescriptorSetLayout>& setLayouts);
     void Shutdown(Device* device);
 
     VkPipeline GetPipeline();

@@ -42,7 +42,7 @@ void Renderer::Init(GLFWwindow *window, Input* input)
     m_commandBufferManager.Init(m_device.GetDevice(), m_device.GetGraphicsQueueFamilyIndex(&m_surface));
     m_resourceManager.CreateUniformBuffers();
     m_resourceManager.CreateObjectBuffer(128);
-    m_resourceManager.CreateLightBuffer(8);
+    m_resourceManager.CreateLightBuffers();
 
 #ifndef NDEBUG
     {
@@ -67,9 +67,22 @@ void Renderer::Init(GLFWwindow *window, Input* input)
     m_material2.SetAlbedo(glm::vec3(1.0f, 1.0f, 1.0f));
     m_material3.SetAlbedo(glm::vec3(1.0f, 1.0f, 1.0f));
 
+    m_material4.SetAlbedo(glm::vec3(0.2f, 0.8f, 0.2f));
+    m_material4.SetAlphaMode(AlphaMode::Blend);
+    m_material4.SetMetallic(0.0f);
+    m_material4.SetRoughness(0.3f);
+
+    m_material5.SetAlbedo(glm::vec3(0.8f, 0.2f, 0.2f));
+    m_material5.SetAlphaMode(AlphaMode::Cutoff);
+    m_material5.SetAlphaCutoff(0.5f);
+    m_material5.SetMetallic(0.0f);
+    m_material5.SetRoughness(0.6f);
+
     m_material.Init(&m_device, m_resourceManager.GetAllocator());
     m_material2.Init(&m_device, m_resourceManager.GetAllocator());
     m_material3.Init(&m_device, m_resourceManager.GetAllocator());
+    m_material4.Init(&m_device, m_resourceManager.GetAllocator());
+    m_material5.Init(&m_device, m_resourceManager.GetAllocator());
 
     m_textureAtlas.Init(&m_device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool(), 16);
     m_textureAtlas.AddTexture("textures/BrickWall23_1K_BaseColor.png");
@@ -114,6 +127,18 @@ void Renderer::Init(GLFWwindow *window, Input* input)
     obj3->GetTransform()->SetPosition(glm::vec3(-3.0f, 0.0f, 0.0f));
     m_scene.AddObject(obj3);
 
+    Object* transparentObj = new Object();
+    transparentObj->Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), &m_resourceManager, "models/cube.obj");
+    transparentObj->SetMaterial(&m_material4);
+    transparentObj->GetTransform()->SetPosition(glm::vec3(0.0f, 4.0f, 0.0f));
+    m_scene.AddObject(transparentObj);
+
+    Object* cutoffObj = new Object();
+    cutoffObj->Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), &m_resourceManager, "models/cube.obj");
+    cutoffObj->SetMaterial(&m_material5);
+    cutoffObj->GetTransform()->SetPosition(glm::vec3(1.5f, 2.0f, 0.0f));
+    m_scene.AddObject(cutoffObj);
+
     m_scene.GetCamera()->SetPosition(glm::vec3(8.0f, 5.0f, 8.0f));
     m_scene.GetCamera()->SetAspectRatio(m_swapChain.GetSwapChainExtent().width / (float)m_swapChain.GetSwapChainExtent().height);
 
@@ -122,6 +147,30 @@ void Renderer::Init(GLFWwindow *window, Input* input)
     sun->SetColor(glm::vec3(1.0f, 0.95f, 0.8f));
     sun->SetIntensity(10.5f);
     m_scene.AddLight(sun);
+
+    PointLight* pl1 = new PointLight();
+    pl1->SetPosition(glm::vec3(2.0f, 1.0f, 2.0f));
+    pl1->SetColor(glm::vec3(1.0f, 0.0f, 0.0f));
+    pl1->SetRadius(8.0f);
+    m_scene.AddLight(pl1);
+
+    PointLight* pl2 = new PointLight();
+    pl2->SetPosition(glm::vec3(-2.0f, 1.0f, -2.0f));
+    pl2->SetColor(glm::vec3(0.0f, 1.0f, 0.0f));
+    pl2->SetRadius(8.0f);
+    m_scene.AddLight(pl2);
+
+    PointLight* pl3 = new PointLight();
+    pl3->SetPosition(glm::vec3(2.0f, 1.0f, -2.0f));
+    pl3->SetColor(glm::vec3(0.0f, 0.0f, 1.0f));
+    pl3->SetRadius(8.0f);
+    m_scene.AddLight(pl3);
+
+    PointLight* pl4 = new PointLight();
+    pl4->SetPosition(glm::vec3(-2.0f, 1.0f, 2.0f));
+    pl4->SetColor(glm::vec3(1.0f, 1.0f, 0.0f));
+    pl4->SetRadius(8.0f);
+    m_scene.AddLight(pl4);
 
     m_descriptorManager.CreateDescriptorPool();
     m_descriptorManager.CreateDescriptorSets();
@@ -148,6 +197,22 @@ void Renderer::Init(GLFWwindow *window, Input* input)
             m_material3.SetDescriptorSet(m_descriptorManager.CreateTextureDescriptorSet(m_material3.GetTextureArray()));
         else if (m_material3.GetTexture())
             m_material3.SetDescriptorSet(m_descriptorManager.CreateTextureDescriptorSet(m_material3.GetTexture()));
+    }
+
+    if (m_material4.HasTexture())
+    {
+        if (m_material4.GetTextureArray())
+            m_material4.SetDescriptorSet(m_descriptorManager.CreateTextureDescriptorSet(m_material4.GetTextureArray()));
+        else if (m_material4.GetTexture())
+            m_material4.SetDescriptorSet(m_descriptorManager.CreateTextureDescriptorSet(m_material4.GetTexture()));
+    }
+
+    if (m_material5.HasTexture())
+    {
+        if (m_material5.GetTextureArray())
+            m_material5.SetDescriptorSet(m_descriptorManager.CreateTextureDescriptorSet(m_material5.GetTextureArray()));
+        else if (m_material5.GetTexture())
+            m_material5.SetDescriptorSet(m_descriptorManager.CreateTextureDescriptorSet(m_material5.GetTexture()));
     }
 
     if (m_material.GetNormalMap())
@@ -177,10 +242,19 @@ void Renderer::Init(GLFWwindow *window, Input* input)
     m_pipelineManager.CreateLightingPipeline(&m_device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetGBufferSetLayout(), m_descriptorManager.GetLightSetLayout());
     m_pipelineManager.CreateCompositePipeline(&m_device, &m_swapChain, m_descriptorManager.GetCompositeSetLayout());
 
-    m_resourceManager.CreateComputeResultBuffer();
-    m_descriptorManager.CreateComputeDescriptorSetLayout();
-    m_computePipeline.Create(&m_device, "shaders/compute.spv", m_descriptorManager.GetComputeDescriptorSetLayout());
-    m_descriptorManager.CreateComputeDescriptorSet();
+    {
+        VkExtent2D extent = m_swapChain.GetSwapChainExtent();
+        uint32_t tileWidth = 32, tileHeight = 32;
+        uint32_t tileCountX = (extent.width + tileWidth - 1) / tileWidth;
+        uint32_t tileCountY = (extent.height + tileHeight - 1) / tileHeight;
+        uint32_t depthSlices = 16;
+        m_resourceManager.CreateClusterGrid(tileCountX, tileCountY, depthSlices);
+    }
+
+    m_descriptorManager.CreateClusterSetLayout();
+    m_pipelineManager.CreateClusterCullPipeline(&m_device, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetClusterSetLayout());
+    m_pipelineManager.CreateClusteredForwardPipeline(&m_device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetDescriptorSetLayout(1), m_descriptorManager.GetTextureSetLayout(), m_descriptorManager.GetNormalMapSetLayout(), m_descriptorManager.GetHeightMapSetLayout(), m_descriptorManager.GetClusterSetLayout());
+    m_descriptorManager.CreateClusterDescriptorSet();
 
     CreateSyncObjects();
     m_imagesInFlight.resize(m_swapChain.GetSwapChainImages().size(), VK_NULL_HANDLE);
@@ -344,7 +418,7 @@ void Renderer::Render()
 
         for (Object* obj : m_scene.GetObjects())
         {
-            if (!obj || !obj->IsActive()) continue;
+            if (!obj || !obj->IsActive() || obj->IsTransparent()) continue;
 
             uint32_t dynamicOffset = obj->GetUBOSlot() * m_resourceManager.GetObjectUBOStride();
             vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetGBufferPipelineLayout(), 1, 1, m_descriptorManager.GetPerObjectDescriptorSets().data(), 1, &dynamicOffset);
@@ -381,9 +455,9 @@ void Renderer::Render()
                 VK_IMAGE_ASPECT_COLOR_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
                 VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 
-        transitionImage(gbufferImages[4], VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            VK_IMAGE_ASPECT_DEPTH_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
-            VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+        transitionImage(gbufferImages[4], VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+            VK_IMAGE_ASPECT_DEPTH_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
+            VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT);
 
         transitionImage(m_swapChain.GetLightingResultImage(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
             VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
@@ -546,6 +620,8 @@ void Renderer::Render()
             ubo.parallaxMode = 0;
             ubo.parallaxScale = 0.0f;
             ubo.parallaxIterations = 0;
+            ubo.alphaCutoff = 0.5f;
+            ubo.alphaMode = 0;
 
             uint32_t slot = m_resourceManager.AllocateObjectSlot();
             debugSlots.push_back(slot);
@@ -568,32 +644,104 @@ void Renderer::Render()
     }
 #endif
 
-    m_gui.Render(cmd);
-
     vkCmdEndRendering(cmd);
 
-    VkDescriptorSet computeDescriptorSet = m_descriptorManager.GetComputeDescriptorSet();
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipeline.GetPipeline());
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipeline.GetPipelineLayout(), 0, 1, &computeDescriptorSet, 0, nullptr);
-    vkCmdDispatch(cmd, 1, 1, 1);
+    {
+        VkDescriptorSet clusterDS = m_descriptorManager.GetClusterDescriptorSet();
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipelineManager.GetClusterCullPipeline());
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipelineManager.GetClusterCullPipelineLayout(), 0, 1, &m_descriptorManager.GetDescriptorSets()[imageIndex], 0, nullptr);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipelineManager.GetClusterCullPipelineLayout(), 1, 1, &clusterDS, 0, nullptr);
+        uint32_t groupCount = m_resourceManager.GetClusterCount();
+        vkCmdDispatch(cmd, groupCount, 1, 1);
 
-    VkMemoryBarrier memoryBarrier{};
-    memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-    memoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-    memoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 1, &memoryBarrier, 0, nullptr, 0, nullptr);
+        VkMemoryBarrier clusterBarrier{};
+        clusterBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+        clusterBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+        clusterBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 1, &clusterBarrier, 0, nullptr, 0, nullptr);
+    }
 
-    VkBufferCopy copyRegion{};
-    copyRegion.srcOffset = 0;
-    copyRegion.dstOffset = 0;
-    copyRegion.size = sizeof(float);
-    vkCmdCopyBuffer(cmd, m_resourceManager.GetComputeResultBuffer(), m_resourceManager.GetComputeStagingBuffer(), 1, &copyRegion);
+    {
+        VkRenderingAttachmentInfo forwardAttachment{};
+        forwardAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+        forwardAttachment.imageView = m_swapChain.GetSwapChainImageViews()[imageIndex];
+        forwardAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        forwardAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+        forwardAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 
-    VkMemoryBarrier readBarrier{};
-    readBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-    readBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    readBarrier.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
-    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0, 1, &readBarrier, 0, nullptr, 0, nullptr);
+        VkRenderingAttachmentInfo forwardDepth{};
+        forwardDepth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+        forwardDepth.imageView = m_swapChain.GetDepthImageView();
+        forwardDepth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+        forwardDepth.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+        forwardDepth.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        forwardDepth.clearValue.depthStencil = {1.0f, 0};
+
+        VkRenderingInfo forwardRendering{};
+        forwardRendering.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+        forwardRendering.renderArea = {{0, 0}, m_swapChain.GetSwapChainExtent()};
+        forwardRendering.layerCount = 1;
+        forwardRendering.colorAttachmentCount = 1;
+        forwardRendering.pColorAttachments = &forwardAttachment;
+        forwardRendering.pDepthAttachment = &forwardDepth;
+
+        vkCmdBeginRendering(cmd, &forwardRendering);
+
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetClusteredForwardPipeline());
+        vkCmdSetViewport(cmd, 0, 1, &viewport);
+        vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetClusteredForwardPipelineLayout(), 0, 1, &m_descriptorManager.GetDescriptorSets()[imageIndex], 0, nullptr);
+        VkDescriptorSet clusterDS = m_descriptorManager.GetClusterDescriptorSet();
+
+        for (Object* obj : m_scene.GetObjects())
+        {
+            if (!obj || !obj->IsActive() || !obj->IsTransparent()) continue;
+
+            uint32_t dynamicOffset = obj->GetUBOSlot() * m_resourceManager.GetObjectUBOStride();
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetClusteredForwardPipelineLayout(), 1, 1, m_descriptorManager.GetPerObjectDescriptorSets().data(), 1, &dynamicOffset);
+
+            Material* material = obj->GetMaterial();
+            VkDescriptorSet texDS = (material && material->HasTexture() && material->GetDescriptorSet() != VK_NULL_HANDLE)
+                ? material->GetDescriptorSet() : m_descriptorManager.GetNullTextureDescriptorSet();
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetClusteredForwardPipelineLayout(), 2, 1, &texDS, 0, nullptr);
+
+            VkDescriptorSet normDS = (material && material->GetNormalMapDescriptorSet() != VK_NULL_HANDLE)
+                ? material->GetNormalMapDescriptorSet() : m_descriptorManager.GetNullNormalMapDescriptorSet();
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetClusteredForwardPipelineLayout(), 3, 1, &normDS, 0, nullptr);
+
+            VkDescriptorSet heightDS = (material && material->GetHeightMapDescriptorSet() != VK_NULL_HANDLE)
+                ? material->GetHeightMapDescriptorSet() : m_descriptorManager.GetNullHeightMapDescriptorSet();
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetClusteredForwardPipelineLayout(), 4, 1, &heightDS, 0, nullptr);
+
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetClusteredForwardPipelineLayout(), 5, 1, &clusterDS, 0, nullptr);
+
+            obj->Draw(cmd, m_descriptorManager.GetPerObjectDescriptorSets()[0], m_resourceManager.GetObjectUBOStride());
+        }
+
+        vkCmdEndRendering(cmd);
+    }
+
+    {
+        VkRenderingAttachmentInfo imguiAttachment{};
+        imguiAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+        imguiAttachment.imageView = m_swapChain.GetSwapChainImageViews()[imageIndex];
+        imguiAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        imguiAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+        imguiAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+        VkRenderingInfo imguiRendering{};
+        imguiRendering.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+        imguiRendering.renderArea = {{0, 0}, m_swapChain.GetSwapChainExtent()};
+        imguiRendering.layerCount = 1;
+        imguiRendering.colorAttachmentCount = 1;
+        imguiRendering.pColorAttachments = &imguiAttachment;
+        imguiRendering.pDepthAttachment = nullptr;
+
+        vkCmdBeginRendering(cmd, &imguiRendering);
+        m_gui.Render(cmd);
+        vkCmdEndRendering(cmd);
+    }
 
     transitionImage(m_swapChain.GetSwapChainImages()[imageIndex],
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -644,15 +792,6 @@ void Renderer::Render()
 
     uint64_t deltaTicks = timestamps[1] - timestamps[0];
     m_deltaTime = static_cast<float>(deltaTicks * m_device.GetTimestampPeriod()) / 1e9f;
-
-    if (!m_computeResultPrinted)
-    {
-        float result = 0.0f;
-        m_resourceManager.ReadComputeResult(result);
-
-        std::cout << "Compute result (Pi): " << result << std::endl;
-        m_computeResultPrinted = true;
-    }
 
     VkSwapchainKHR swapChain = m_swapChain.GetSwapChain();
 
@@ -774,7 +913,6 @@ void Renderer::Destroy()
 
     m_resourceManager.Cleanup();
 
-    m_computePipeline.Shutdown(&m_device);
     m_descriptorManager.Cleanup();
     m_pipelineManager.Shutdown(&m_device);
     m_swapChain.Cleanup(&m_device);

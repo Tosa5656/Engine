@@ -28,6 +28,9 @@ public:
     glm::vec3 GetTarget() const;
     glm::vec3 GetUp() const;
 
+    float GetNearPlane() const { return m_near; }
+    float GetFarPlane() const { return m_far; }
+
     const glm::mat4& GetViewMatrix();
     const glm::mat4& GetProjectionMatrix();
 

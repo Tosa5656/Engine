@@ -16,7 +16,9 @@ layout(set = 0, binding = 0) uniform PerFrameUBO
     mat4 view;
     mat4 proj;
     vec3 cameraPos;
-    float padding;
+    float nearPlane;
+    float farPlane;
+    vec2 padding;
 } perFrame;
 
 layout(set = 1, binding = 0) uniform PerObjectUBO
@@ -32,6 +34,8 @@ layout(set = 1, binding = 0) uniform PerObjectUBO
     int parallaxMode;
     float parallaxScale;
     int parallaxIterations;
+    float alphaCutoff;
+    int alphaMode;
 } perObject;
 
 layout(set = 2, binding = 0) uniform sampler2D texSampler;
@@ -104,9 +108,14 @@ void main()
     else if (perObject.parallaxMode == 1)
         finalUV = ReliefMapping(fragUVAtlas, viewDirTS, perObject.parallaxScale);
 
-    vec3 albedo = texture(texSampler, finalUV).rgb;
-    if (length(albedo) < 0.001)
-        albedo = fragAlbedo;
+    vec4 albedoColor = texture(texSampler, finalUV);
+    if (length(albedoColor.rgb) < 0.001)
+        albedoColor.rgb = fragAlbedo;
+
+    if (perObject.alphaMode == 1 && albedoColor.a < perObject.alphaCutoff)
+        discard;
+
+    vec3 albedo = albedoColor.rgb;
 
     vec3 normalMap = texture(texNormalSampler, finalUV).rgb;
     vec3 normal = normalize(TBN * (normalMap * 2.0 - 1.0));

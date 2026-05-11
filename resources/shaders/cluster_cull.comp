@@ -1,0 +1,61 @@
+#version 460
+
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+
+layout(set = 0, binding = 0) uniform PerFrameUBO {
+    mat4 view;
+    mat4 proj;
+    vec3 cameraPos;
+    float nearPlane;
+    float farPlane;
+    vec2 padding;
+} perFrame;
+
+struct Light {
+    vec4 position;
+    vec4 direction;
+    vec4 color;
+    vec4 params;
+    vec4 atten;
+};
+
+layout(set = 1, binding = 0) buffer LightSSBO {
+    Light lights[1024];
+    int lightCount;
+} lightData;
+
+layout(set = 1, binding = 1) buffer ClusterCountSSBO {
+    uint counts[];
+} clusterCount;
+
+layout(set = 1, binding = 2) buffer ClusterIndexSSBO {
+    uint indices[];
+} clusterIndex;
+
+layout(set = 1, binding = 3) uniform ClusterGridInfoUBO {
+    uint tileCountX;
+    uint tileCountY;
+    uint clusterCount;
+    uint depthSlices;
+} gridInfo;
+
+layout(set = 1, binding = 4) uniform sampler2D depthSampler;
+
+void main()
+{
+    uint clusterId = gl_GlobalInvocationID.x;
+    if (clusterId >= gridInfo.clusterCount) return;
+
+    uint maxLightsPerCluster = 64;
+    uint startIdx = clusterId * maxLightsPerCluster;
+
+    uint count = 0;
+    for (int i = 0; i < lightData.lightCount && i < 1024 && count < maxLightsPerCluster; i++)
+    {
+        int type = int(lightData.lights[i].position.w);
+
+        clusterIndex.indices[startIdx + count] = uint(i);
+        count++;
+    }
+    clusterCount.counts[clusterId] = count;
+}

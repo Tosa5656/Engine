@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 #include <glm/glm.hpp>
@@ -10,6 +12,13 @@
 #include <cstdint>
 
 class Device;
+
+enum class AlphaMode : uint32_t
+{
+    Opaque = 0,
+    Cutoff = 1,
+    Blend = 2
+};
 
 class Material
 {
@@ -32,6 +41,8 @@ public:
     void SetParallaxMode(ParallaxMode mode);
     void SetParallaxScale(float scale);
     void SetParallaxIterations(int iterations);
+    void SetAlphaMode(AlphaMode mode) { m_alpha = mode; m_data.alphaMode = static_cast<int>(mode); }
+    void SetAlphaCutoff(float cutoff) { m_alphaCutoff = cutoff; m_data.alphaCutoff = cutoff; }
     void Init(Device* device, VmaAllocator allocator);
 
     glm::vec3 GetAlbedo() const;
@@ -48,6 +59,8 @@ public:
     Texture* GetHeightMap() const { return m_heightMap; }
     bool HasTexture() const { return m_texture != nullptr || m_textureArray != nullptr; }
     uint32_t GetTextureIndex() const { return m_textureIndex; }
+    AlphaMode GetAlphaMode() const { return m_alpha; }
+    float GetAlphaCutoff() const { return m_alphaCutoff; }
 
     const PerObjectUBO& GetData() const;
 
@@ -73,4 +86,6 @@ private:
     ParallaxMode m_parallaxMode = ParallaxMode::ReliefMapping;
     float m_parallaxScale = 0.1f;
     int m_parallaxIterations = 32;
+    AlphaMode m_alpha = AlphaMode::Opaque;
+    float m_alphaCutoff = 0.5f;
 };

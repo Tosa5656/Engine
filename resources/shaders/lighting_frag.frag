@@ -7,7 +7,9 @@ layout(set = 0, binding = 0) uniform PerFrameUBO
     mat4 view;
     mat4 proj;
     vec3 cameraPos;
-    float padding;
+    float nearPlane;
+    float farPlane;
+    vec2 padding;
 } perFrame;
 
 layout(set = 1, binding = 0) uniform sampler2D gPosition;
@@ -25,9 +27,9 @@ struct Light
     vec4 atten;
 };
 
-layout(set = 2, binding = 0) uniform LightUBO
+layout(set = 2, binding = 0) readonly buffer LightSSBO
 {
-    Light lights[8];
+    Light lights[1024];
     int lightCount;
 } lightData;
 
@@ -126,7 +128,7 @@ void main()
     vec3 ambient = albedo * 0.3 * ao;
     vec3 lighting = vec3(0.0);
 
-    for (int i = 0; i < lightData.lightCount && i < 8; i++)
+    for (int i = 0; i < lightData.lightCount && i < 1024; i++)
     {
         Light light = lightData.lights[i];
         int type = int(light.position.w);
