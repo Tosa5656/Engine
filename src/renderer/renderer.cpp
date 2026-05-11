@@ -275,7 +275,7 @@ void Renderer::Init(GLFWwindow *window, Input* input)
 
 void Renderer::Render()
 {
-    m_gui.NewFrame();
+    m_gui.DebugConsole();
 
     {
         ImGui::Begin("Exposure Control");
@@ -364,6 +364,7 @@ void Renderer::Render()
         m_descriptorManager.UpdateCompositeDescriptorSet();
         m_descriptorManager.UpdateClusterDescriptorSet();
         m_descriptorManager.UpdateHdrDescriptorSet();
+        m_descriptorManager.UpdateLuminanceDescriptorSet();
         return;
     }
     else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
@@ -993,6 +994,7 @@ void Renderer::Render()
         m_descriptorManager.UpdateCompositeDescriptorSet();
         m_descriptorManager.UpdateClusterDescriptorSet();
         m_descriptorManager.UpdateHdrDescriptorSet();
+        m_descriptorManager.UpdateLuminanceDescriptorSet();
         return;
     }
     else if (result != VK_SUCCESS)

@@ -913,9 +913,13 @@ void DescriptorsManager::UpdateHdrDescriptorSet()
 {
     if (m_hdrDescriptorSet == VK_NULL_HANDLE) return;
 
+    VkImageView hdrView = m_swapChain->GetHdrColorImageView();
+    if (hdrView == VK_NULL_HANDLE)
+        hdrView = m_dummyImageView;
+
     VkDescriptorImageInfo imageInfo{};
     imageInfo.sampler = m_dummySampler;
-    imageInfo.imageView = m_swapChain->GetHdrColorImageView();
+    imageInfo.imageView = hdrView;
     imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     VkWriteDescriptorSet write{};
@@ -1005,9 +1009,13 @@ void DescriptorsManager::UpdateLuminanceDescriptorSet()
 {
     if (m_luminanceDescriptorSet == VK_NULL_HANDLE) return;
 
+    VkImageView hdrView = m_swapChain->GetHdrColorImageView();
+    if (hdrView == VK_NULL_HANDLE)
+        hdrView = m_dummyImageView;
+
     VkDescriptorImageInfo imageInfo{};
     imageInfo.sampler = m_dummySampler;
-    imageInfo.imageView = m_swapChain->GetHdrColorImageView();
+    imageInfo.imageView = hdrView;
     imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     VkDescriptorBufferInfo luminanceInfo{};
