@@ -27,9 +27,9 @@
 - [x] Deferred shading G-buffer (position, normal, albedo, emissive)
 - [x] Forward+ / tiled rendering fallback
 - [x] Clustered Forward
-- [ ] HDR pipeline (RGB16F framebuffer)
-- [ ] Tonemapping (ACES filmic)
-- [ ] Exposure control (auto-exposure, manual)
+- [x] HDR pipeline (RGB16F framebuffer)
+- [x] Tonemapping (ACES filmic)
+- [x] Exposure control (auto-exposure, manual)
 
 ### Shadows
 - [ ] Shadow map per light type

@@ -1,4 +1,6 @@
 #include "renderer/renderer.h"
+#include <cmath>
+#include <numeric>
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/quaternion.hpp>
 #include <renderer/vulkan/light/directional.h>
@@ -244,6 +246,11 @@ void Renderer::Init(GLFWwindow *window, Input* input)
     m_pipelineManager.CreateCompositePipeline(&m_device, &m_swapChain, m_descriptorManager.GetCompositeSetLayout());
     m_pipelineManager.CreateTonemapPipeline(&m_device, &m_swapChain, m_descriptorManager.GetCompositeSetLayout(), m_descriptorManager.GetDescriptorSetLayout(0));
 
+    m_resourceManager.CreateLuminanceBuffers();
+    m_descriptorManager.CreateLuminanceSetLayout();
+    m_descriptorManager.CreateLuminanceDescriptorSet();
+    m_pipelineManager.CreateLuminancePipeline(&m_device, m_descriptorManager.GetLuminanceSetLayout());
+
     {
         VkExtent2D extent = m_swapChain.GetSwapChainExtent();
         uint32_t tileWidth = 32, tileHeight = 32;
@@ -269,8 +276,77 @@ void Renderer::Init(GLFWwindow *window, Input* input)
 void Renderer::Render()
 {
     m_gui.NewFrame();
-    
+
+    {
+        ImGui::Begin("Exposure Control");
+        ImGui::Checkbox("Auto Exposure", &m_autoExposure);
+        if (!m_autoExposure)
+        {
+            ImGui::SliderFloat("Exposure", &m_manualExposure, 0.01f, 10.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+        }
+        else
+        {
+            ImGui::Text("Current: %.3f", m_smoothedExposure);
+            ImGui::SliderFloat("Target Luminance", &m_targetLuminance, 0.01f, 1.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+            ImGui::SliderFloat("Min Exposure", &m_minExposure, 0.01f, 1.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+            ImGui::SliderFloat("Max Exposure", &m_maxExposure, 1.0f, 20.0f, "%.1f", ImGuiSliderFlags_AlwaysClamp);
+            ImGui::SliderFloat("Adapt Speed", &m_adaptSpeed, 0.1f, 10.0f, "%.1f", ImGuiSliderFlags_AlwaysClamp);
+        }
+        ImGui::End();
+    }
+
     vkWaitForFences(m_device.GetDevice(), 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
+
+    if (m_autoExposure && m_luminanceValid)
+    {
+        uint32_t histogram[256];
+        m_resourceManager.ReadLuminanceHistogram(histogram);
+        uint64_t totalPixels = std::accumulate(std::begin(histogram), std::end(histogram), uint64_t(0));
+        if (totalPixels > 0)
+        {
+            uint64_t excludeLow  = totalPixels * 1 / 100;
+            uint64_t excludeHigh = totalPixels * 1 / 100;
+            uint64_t running = 0;
+            double weightedSum = 0.0;
+            uint64_t weightedCount = 0;
+            bool started = false;
+            for (int i = 0; i < 256; i++)
+            {
+                running += histogram[i];
+                if (!started && running > excludeLow)
+                    started = true;
+                if (started)
+                {
+                    double logLuma = (double(i) + 0.5) * (32.0 / 256.0) - 16.0;
+                    uint64_t w = histogram[i];
+                    if (running >= excludeLow + excludeHigh && w > 0)
+                    {
+                        uint64_t clip = running - (totalPixels - excludeHigh);
+                        if (clip < w) w -= clip;
+                    }
+                    weightedSum += logLuma * double(w);
+                    weightedCount += w;
+                }
+                if (running >= totalPixels - excludeHigh)
+                    break;
+            }
+            if (weightedCount > 0)
+            {
+                float avgLogLuma = float(weightedSum / double(weightedCount));
+                float avgLuma = std::exp2(avgLogLuma);
+                float targetExposure = m_targetLuminance / std::max(avgLuma, 1e-6f);
+                targetExposure = std::clamp(targetExposure, m_minExposure, m_maxExposure);
+                float rate = 1.0f - std::exp(-m_adaptSpeed * m_deltaTime);
+                m_smoothedExposure = m_smoothedExposure + (targetExposure - m_smoothedExposure) * rate;
+            }
+        }
+    }
+    m_luminanceValid = false;
+
+    if (!m_autoExposure)
+        m_smoothedExposure = m_manualExposure;
+
+    m_resourceManager.SetExposure(m_smoothedExposure);
 
     uint32_t imageIndex;
     VkResult result = vkAcquireNextImageKHR(
@@ -286,6 +362,7 @@ void Renderer::Render()
         m_swapChain.Recreate(&m_device, m_window, &m_surface, &m_commandBufferManager, m_resourceManager.GetAllocator());
         m_descriptorManager.UpdateGBufferDescriptorSet();
         m_descriptorManager.UpdateCompositeDescriptorSet();
+        m_descriptorManager.UpdateClusterDescriptorSet();
         m_descriptorManager.UpdateHdrDescriptorSet();
         return;
     }
@@ -646,6 +723,45 @@ void Renderer::Render()
     }
 
     {
+        VkBuffer luminanceBuf = m_resourceManager.GetLuminanceStorageBuffer();
+        VkBuffer stagingBuf = m_resourceManager.GetLuminanceStagingBuffer();
+
+        vkCmdFillBuffer(cmd, luminanceBuf, 0, sizeof(uint32_t) * 256, 0);
+
+        VkBufferMemoryBarrier fillBarrier{};
+        fillBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+        fillBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        fillBarrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
+        fillBarrier.buffer = luminanceBuf;
+        fillBarrier.offset = 0;
+        fillBarrier.size = VK_WHOLE_SIZE;
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1, &fillBarrier, 0, nullptr);
+
+        VkDescriptorSet luminanceDS = m_descriptorManager.GetLuminanceDescriptorSet();
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipelineManager.GetLuminancePipeline());
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipelineManager.GetLuminancePipelineLayout(), 0, 1, &luminanceDS, 0, nullptr);
+        VkExtent2D extent = m_swapChain.GetSwapChainExtent();
+        uint32_t groupX = (extent.width + 15) / 16;
+        uint32_t groupY = (extent.height + 15) / 16;
+        vkCmdDispatch(cmd, groupX, groupY, 1);
+
+        VkBufferMemoryBarrier computeBarrier{};
+        computeBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+        computeBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+        computeBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        computeBarrier.buffer = luminanceBuf;
+        computeBarrier.offset = 0;
+        computeBarrier.size = VK_WHOLE_SIZE;
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 1, &computeBarrier, 0, nullptr);
+
+        VkBufferCopy copyRegion{};
+        copyRegion.size = sizeof(uint32_t) * 256;
+        vkCmdCopyBuffer(cmd, luminanceBuf, stagingBuf, 1, &copyRegion);
+
+        m_luminanceValid = true;
+    }
+
+    {
         VkRenderingAttachmentInfo tonemapAttachment{};
         tonemapAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
         tonemapAttachment.imageView = m_swapChain.GetSwapChainImageViews()[imageIndex];
@@ -875,6 +991,7 @@ void Renderer::Render()
         m_swapChain.Recreate(&m_device, m_window, &m_surface, &m_commandBufferManager, m_resourceManager.GetAllocator());
         m_descriptorManager.UpdateGBufferDescriptorSet();
         m_descriptorManager.UpdateCompositeDescriptorSet();
+        m_descriptorManager.UpdateClusterDescriptorSet();
         m_descriptorManager.UpdateHdrDescriptorSet();
         return;
     }
@@ -900,7 +1017,7 @@ void Renderer::Render()
     if (m_input->IsCursorCaptured())
     {
         glm::vec2 mouseDelta = m_input->GetMouseDelta();
-        float rotateSpeed = 30 * m_deltaTime;
+        float rotateSpeed = 10 * m_deltaTime;
         camera->Rotate(-mouseDelta.x * rotateSpeed, -mouseDelta.y * rotateSpeed);
     }
 

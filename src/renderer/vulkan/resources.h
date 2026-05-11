@@ -137,4 +137,17 @@ private:
     uint32_t m_clusterCount = 0;
     static const uint32_t MAX_LIGHTS_PER_CLUSTER = 64;
     float m_exposure = 1.0f;
+
+    VkBuffer m_luminanceStorageBuffer = VK_NULL_HANDLE;
+    VmaAllocation m_luminanceStorageAllocation = VK_NULL_HANDLE;
+    VkBuffer m_luminanceStagingBuffer = VK_NULL_HANDLE;
+    VmaAllocation m_luminanceStagingAllocation = VK_NULL_HANDLE;
+
+public:
+    void CreateLuminanceBuffers();
+
+    VkBuffer GetLuminanceStorageBuffer() const { return m_luminanceStorageBuffer; }
+    VkBuffer GetLuminanceStagingBuffer() const { return m_luminanceStagingBuffer; }
+
+    void ReadLuminanceHistogram(uint32_t* outHistogram);
 };

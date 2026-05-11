@@ -956,6 +956,36 @@ void PipelineManager::CreateClusteredForwardPipeline(Device* device, SwapChain* 
     vkDestroyShaderModule(device->GetDevice(), vertShaderModule, nullptr);
 }
 
+void PipelineManager::CreateLuminancePipeline(Device* device, VkDescriptorSetLayout luminanceSetLayout)
+{
+    auto compShaderCode = ReadFile("shaders/luminance_histogram.spv");
+    VkShaderModule compShaderModule = CreateShaderModule(compShaderCode, device);
+
+    VkPipelineShaderStageCreateInfo compStage{};
+    compStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    compStage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+    compStage.module = compShaderModule;
+    compStage.pName = "main";
+
+    VkPipelineLayoutCreateInfo layoutInfo{};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    layoutInfo.setLayoutCount = 1;
+    layoutInfo.pSetLayouts = &luminanceSetLayout;
+
+    if (vkCreatePipelineLayout(device->GetDevice(), &layoutInfo, nullptr, &m_luminancePipelineLayout) != VK_SUCCESS)
+        throw std::runtime_error("failed to create luminance pipeline layout!");
+
+    VkComputePipelineCreateInfo pipelineInfo{};
+    pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+    pipelineInfo.stage = compStage;
+    pipelineInfo.layout = m_luminancePipelineLayout;
+
+    if (vkCreateComputePipelines(device->GetDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_luminancePipeline) != VK_SUCCESS)
+        throw std::runtime_error("failed to create luminance pipeline!");
+
+    vkDestroyShaderModule(device->GetDevice(), compShaderModule, nullptr);
+}
+
 void PipelineManager::Shutdown(Device* device)
 {
     if (m_compositePipeline != VK_NULL_HANDLE)
@@ -1032,6 +1062,16 @@ void PipelineManager::Shutdown(Device* device)
     {
         vkDestroyPipelineLayout(device->GetDevice(), m_tonemapPipelineLayout, nullptr);
         m_tonemapPipelineLayout = VK_NULL_HANDLE;
+    }
+    if (m_luminancePipeline != VK_NULL_HANDLE)
+    {
+        vkDestroyPipeline(device->GetDevice(), m_luminancePipeline, nullptr);
+        m_luminancePipeline = VK_NULL_HANDLE;
+    }
+    if (m_luminancePipelineLayout != VK_NULL_HANDLE)
+    {
+        vkDestroyPipelineLayout(device->GetDevice(), m_luminancePipelineLayout, nullptr);
+        m_luminancePipelineLayout = VK_NULL_HANDLE;
     }
 }
 

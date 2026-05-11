@@ -114,6 +114,15 @@ private:
 
     GUI m_gui;
 
+    bool  m_autoExposure = false;
+    float m_manualExposure = 1.0f;
+    float m_targetLuminance = 0.18f;
+    float m_minExposure = 0.05f;
+    float m_maxExposure = 3.0f;
+    float m_adaptSpeed = 1.0f;
+    float m_smoothedExposure = 1.0f;
+    bool  m_luminanceValid = false;
+
 #ifndef NDEBUG
     Mesh m_debugSphere;
     Mesh m_debugCone;

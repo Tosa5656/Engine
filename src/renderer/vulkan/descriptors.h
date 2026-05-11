@@ -58,12 +58,19 @@ public:
 
     void CreateClusterSetLayout();
     void CreateClusterDescriptorSet();
+    void UpdateClusterDescriptorSet();
     VkDescriptorSetLayout GetClusterSetLayout() const { return m_clusterSetLayout; }
     VkDescriptorSet GetClusterDescriptorSet() const { return m_clusterDescriptorSet; }
 
     VkDescriptorSet GetHdrDescriptorSet() const { return m_hdrDescriptorSet; }
     void CreateHdrDescriptorSet();
     void UpdateHdrDescriptorSet();
+
+    void CreateLuminanceSetLayout();
+    void CreateLuminanceDescriptorSet();
+    void UpdateLuminanceDescriptorSet();
+    VkDescriptorSetLayout GetLuminanceSetLayout() const { return m_luminanceSetLayout; }
+    VkDescriptorSet GetLuminanceDescriptorSet() const { return m_luminanceDescriptorSet; }
 
 private:
     Device* m_device;
@@ -97,4 +104,7 @@ private:
     VkDescriptorSet m_clusterDescriptorSet = VK_NULL_HANDLE;
 
     VkDescriptorSet m_hdrDescriptorSet = VK_NULL_HANDLE;
+
+    VkDescriptorSetLayout m_luminanceSetLayout = VK_NULL_HANDLE;
+    VkDescriptorSet m_luminanceDescriptorSet = VK_NULL_HANDLE;
 };

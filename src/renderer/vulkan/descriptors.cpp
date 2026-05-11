@@ -98,11 +98,17 @@ void DescriptorsManager::Cleanup()
         vkDestroyDescriptorSetLayout(device, m_clusterSetLayout, nullptr);
         m_clusterSetLayout = VK_NULL_HANDLE;
     }
+
+    if (m_luminanceSetLayout != VK_NULL_HANDLE)
+    {
+        vkDestroyDescriptorSetLayout(device, m_luminanceSetLayout, nullptr);
+        m_luminanceSetLayout = VK_NULL_HANDLE;
+    }
 }
 
 void DescriptorsManager::CreateDescriptorPool()
 {
-    std::vector<VkDescriptorPoolSize> poolSizes(11);
+    std::vector<VkDescriptorPoolSize> poolSizes(13);
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSizes[0].descriptorCount = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size());
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
@@ -126,11 +132,17 @@ void DescriptorsManager::CreateDescriptorPool()
     poolSizes[10].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     poolSizes[10].descriptorCount = 1;
 
+    poolSizes[11].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    poolSizes[11].descriptorCount = 2;
+
+    poolSizes[12].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[12].descriptorCount = 2;
+
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
     poolInfo.pPoolSizes = poolSizes.data();
-    poolInfo.maxSets = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size()) + 2 + 256 + 256 + 256 + 1 + 1 + 2 + 1;
+    poolInfo.maxSets = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size()) + 2 + 256 + 256 + 256 + 1 + 1 + 2 + 1 + 1;
 
     if (vkCreateDescriptorPool(m_device->GetDevice(), &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS)
     {
@@ -596,6 +608,54 @@ void DescriptorsManager::CreateClusterDescriptorSet()
     vkUpdateDescriptorSets(m_device->GetDevice(), static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
 
+void DescriptorsManager::UpdateClusterDescriptorSet()
+{
+    if (m_clusterDescriptorSet == VK_NULL_HANDLE) return;
+
+    std::array<VkWriteDescriptorSet, 5> writes{};
+    std::array<VkDescriptorBufferInfo, 4> bufferInfos{};
+    VkDescriptorImageInfo imageInfo{};
+
+    bufferInfos[0].buffer = m_resourceManager->GetLightSSBO();
+    bufferInfos[0].offset = 0;
+    bufferInfos[0].range = m_resourceManager->GetLightBufferSize();
+
+    bufferInfos[1].buffer = m_resourceManager->GetClusterCountSSBO();
+    bufferInfos[1].offset = 0;
+    bufferInfos[1].range = VK_WHOLE_SIZE;
+
+    bufferInfos[2].buffer = m_resourceManager->GetClusterIndexSSBO();
+    bufferInfos[2].offset = 0;
+    bufferInfos[2].range = VK_WHOLE_SIZE;
+
+    bufferInfos[3].buffer = m_resourceManager->GetClusterGridInfoUBO();
+    bufferInfos[3].offset = 0;
+    bufferInfos[3].range = sizeof(ClusterGridBuffer);
+
+    imageInfo.sampler = m_dummySampler;
+    imageInfo.imageView = m_swapChain->GetDepthImageView();
+    imageInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+
+    for (uint32_t i = 0; i < 4; i++)
+    {
+        writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[i].dstSet = m_clusterDescriptorSet;
+        writes[i].dstBinding = i;
+        writes[i].descriptorCount = 1;
+        writes[i].descriptorType = i < 3 ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        writes[i].pBufferInfo = &bufferInfos[i];
+    }
+
+    writes[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[4].dstSet = m_clusterDescriptorSet;
+    writes[4].dstBinding = 4;
+    writes[4].descriptorCount = 1;
+    writes[4].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes[4].pImageInfo = &imageInfo;
+
+    vkUpdateDescriptorSets(m_device->GetDevice(), static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+}
+
 VkDescriptorPool DescriptorsManager::GetDescriptorPool()
 {
     return m_descriptorPool;
@@ -902,6 +962,76 @@ void DescriptorsManager::UpdateGBufferDescriptorSet()
     }
 
     vkUpdateDescriptorSets(m_device->GetDevice(), 5, writes, 0, nullptr);
+}
+
+void DescriptorsManager::CreateLuminanceSetLayout()
+{
+    std::array<VkDescriptorSetLayoutBinding, 2> bindings{};
+
+    bindings[0].binding = 0;
+    bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    bindings[0].descriptorCount = 1;
+    bindings[0].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+    bindings[1].binding = 1;
+    bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    bindings[1].descriptorCount = 1;
+    bindings[1].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+    VkDescriptorSetLayoutCreateInfo layoutInfo{};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+    layoutInfo.pBindings = bindings.data();
+
+    if (vkCreateDescriptorSetLayout(m_device->GetDevice(), &layoutInfo, nullptr, &m_luminanceSetLayout) != VK_SUCCESS)
+        throw std::runtime_error("failed to create luminance descriptor set layout!");
+}
+
+void DescriptorsManager::CreateLuminanceDescriptorSet()
+{
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = m_descriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = &m_luminanceSetLayout;
+
+    if (vkAllocateDescriptorSets(m_device->GetDevice(), &allocInfo, &m_luminanceDescriptorSet) != VK_SUCCESS)
+        throw std::runtime_error("failed to allocate luminance descriptor set!");
+
+    UpdateLuminanceDescriptorSet();
+}
+
+void DescriptorsManager::UpdateLuminanceDescriptorSet()
+{
+    if (m_luminanceDescriptorSet == VK_NULL_HANDLE) return;
+
+    VkDescriptorImageInfo imageInfo{};
+    imageInfo.sampler = m_dummySampler;
+    imageInfo.imageView = m_swapChain->GetHdrColorImageView();
+    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkDescriptorBufferInfo luminanceInfo{};
+    luminanceInfo.buffer = m_resourceManager->GetLuminanceStorageBuffer();
+    luminanceInfo.offset = 0;
+    luminanceInfo.range = VK_WHOLE_SIZE;
+
+    std::array<VkWriteDescriptorSet, 2> writes{};
+
+    writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[0].dstSet = m_luminanceDescriptorSet;
+    writes[0].dstBinding = 0;
+    writes[0].descriptorCount = 1;
+    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes[0].pImageInfo = &imageInfo;
+
+    writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[1].dstSet = m_luminanceDescriptorSet;
+    writes[1].dstBinding = 1;
+    writes[1].descriptorCount = 1;
+    writes[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    writes[1].pBufferInfo = &luminanceInfo;
+
+    vkUpdateDescriptorSets(m_device->GetDevice(), static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
 
 void DescriptorsManager::UpdateCompositeDescriptorSet()

@@ -27,6 +27,7 @@ public:
     void CreateCompositePipeline(Device* device, SwapChain* swapChain, VkDescriptorSetLayout compositeSetLayout);
     void CreateClusterCullPipeline(Device* device, VkDescriptorSetLayout perFrameSetLayout, VkDescriptorSetLayout clusterSetLayout);
     void CreateClusteredForwardPipeline(Device* device, SwapChain* swapChain, VkDescriptorSetLayout perFrameSetLayout, VkDescriptorSetLayout perObjectSetLayout, VkDescriptorSetLayout textureSetLayout, VkDescriptorSetLayout normalMapSetLayout, VkDescriptorSetLayout heightMapSetLayout, VkDescriptorSetLayout clusterSetLayout);
+    void CreateLuminancePipeline(Device* device, VkDescriptorSetLayout luminanceSetLayout);
     void Shutdown(Device* device);
     VkShaderModule CreateShaderModule(const std::vector<char> &code, Device* device);
 
@@ -70,4 +71,11 @@ private:
 
     VkPipelineLayout m_tonemapPipelineLayout = VK_NULL_HANDLE;
     VkPipeline m_tonemapPipeline = VK_NULL_HANDLE;
+
+    VkPipelineLayout m_luminancePipelineLayout = VK_NULL_HANDLE;
+    VkPipeline m_luminancePipeline = VK_NULL_HANDLE;
+
+public:
+    VkPipeline GetLuminancePipeline() const { return m_luminancePipeline; }
+    VkPipelineLayout GetLuminancePipelineLayout() const { return m_luminancePipelineLayout; }
 };

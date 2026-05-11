@@ -54,6 +54,18 @@ void ResourceManager::Cleanup()
         vmaDestroyBuffer(m_allocator, m_clusterGridInfoUBO, m_clusterGridInfoAllocation);
         m_clusterGridInfoUBO = VK_NULL_HANDLE;
     }
+
+    if (m_luminanceStorageBuffer != VK_NULL_HANDLE)
+    {
+        vmaDestroyBuffer(m_allocator, m_luminanceStorageBuffer, m_luminanceStorageAllocation);
+        m_luminanceStorageBuffer = VK_NULL_HANDLE;
+    }
+
+    if (m_luminanceStagingBuffer != VK_NULL_HANDLE)
+    {
+        vmaDestroyBuffer(m_allocator, m_luminanceStagingBuffer, m_luminanceStagingAllocation);
+        m_luminanceStagingBuffer = VK_NULL_HANDLE;
+    }
 }
 
 void ResourceManager::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkBuffer& buffer, VmaAllocation& allocation)
@@ -173,6 +185,26 @@ void ResourceManager::UpdateClusterGridInfo(const ClusterGridBuffer& info)
     vmaMapMemory(m_allocator, m_clusterGridInfoAllocation, &data);
     memcpy(data, &info, sizeof(info));
     vmaUnmapMemory(m_allocator, m_clusterGridInfoAllocation);
+}
+
+void ResourceManager::CreateLuminanceBuffers()
+{
+    VkDeviceSize bufferSize = sizeof(uint32_t) * 256;
+
+    CreateBuffer(bufferSize,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VMA_MEMORY_USAGE_GPU_ONLY, m_luminanceStorageBuffer, m_luminanceStorageAllocation);
+
+    CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VMA_MEMORY_USAGE_GPU_TO_CPU, m_luminanceStagingBuffer, m_luminanceStagingAllocation);
+}
+
+void ResourceManager::ReadLuminanceHistogram(uint32_t* outHistogram)
+{
+    void* mappedData;
+    vmaMapMemory(m_allocator, m_luminanceStagingAllocation, &mappedData);
+    memcpy(outHistogram, mappedData, sizeof(uint32_t) * 256);
+    vmaUnmapMemory(m_allocator, m_luminanceStagingAllocation);
 }
 
 void ResourceManager::UpdatePerObjectUBO(uint32_t slot, const PerObjectUBO& uboData)
