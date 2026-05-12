@@ -95,6 +95,7 @@ public:
     VmaAllocation GetObjectBufferAllocation() const { return m_objectAllocation; }
     uint32_t GetObjectUBOStride() const { return m_objectUBOStride; }
     VmaAllocator GetAllocator();
+    void GetMemoryBudget(uint64_t& gpuMemoryUsed, uint64_t& gpuMemoryBudget);
 
     void CreateLightBuffers();
     void UpdateLightBuffer(const std::vector<LightUBO>& lights, int lightCount);

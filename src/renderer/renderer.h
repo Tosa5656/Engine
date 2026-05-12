@@ -136,4 +136,7 @@ private:
     size_t m_currentFrame = 0;
     bool m_framebufferResized = false;
     float m_deltaTime = 0.0f;
+    float m_fps = 0.0f;
+    float m_fpsAccumulator = 0.0f;
+    int m_fpsFrameCount = 0;
 };

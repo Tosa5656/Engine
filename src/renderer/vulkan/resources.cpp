@@ -260,6 +260,21 @@ VmaAllocator ResourceManager::GetAllocator()
     return m_allocator;
 }
 
+void ResourceManager::GetMemoryBudget(uint64_t& gpuMemoryUsed, uint64_t& gpuMemoryBudget)
+{
+    VmaBudget budgets[VK_MAX_MEMORY_HEAPS];
+    vmaGetHeapBudgets(m_allocator, budgets);
+    
+    gpuMemoryUsed = 0;
+    gpuMemoryBudget = 0;
+    
+    for (int i = 0; i < VK_MAX_MEMORY_HEAPS; i++)
+    {
+        gpuMemoryUsed += budgets[i].usage;
+        gpuMemoryBudget += budgets[i].budget;
+    }
+}
+
 VkDevice ResourceManager::GetVkDevice() {
     return m_device->GetDevice();
 }

@@ -1,6 +1,8 @@
 #include "renderer/renderer.h"
 #include <cmath>
 #include <numeric>
+#include <fstream>
+#include <unistd.h>
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/quaternion.hpp>
 #include <renderer/vulkan/light/directional.h>
@@ -275,7 +277,38 @@ void Renderer::Init(GLFWwindow *window, Input* input)
 
 void Renderer::Render()
 {
-    m_gui.DebugConsole();
+    m_fpsAccumulator += m_deltaTime;
+    m_fpsFrameCount++;
+    if (m_fpsAccumulator >= 0.1 f)
+    {
+        m_fps = static_cast<float>(m_fpsFrameCount) / m_fpsAccumulator;
+        m_fpsAccumulator = 0.0f;
+        m_fpsFrameCount = 0;
+    }
+
+    uint64_t gpuMemoryUsed, gpuMemoryBudget;
+    m_resourceManager.GetMemoryBudget(gpuMemoryUsed, gpuMemoryBudget);
+    
+    uint64_t cpuMemory = 0;
+#ifdef _WIN32
+    PROCESS_MEMORY_COUNTERS memCounters;
+    if (GetProcessMemoryInfo(GetCurrentProcess(), &memCounters, sizeof(memCounters)))
+    {
+        cpuMemory = memCounters.WorkingSetSize;
+    }
+#else
+    std::ifstream statm("/proc/self/statm");
+    if (statm)
+    {
+        long pageSize = sysconf(_SC_PAGESIZE);
+        long rss;
+        statm >> rss;
+        cpuMemory = static_cast<uint64_t>(rss) * pageSize;
+    }
+#endif
+
+    m_gui.UpdateStats(m_deltaTime, gpuMemoryUsed, cpuMemory);
+    m_gui.DebugInfo(static_cast<int>(m_fps));
 
     {
         ImGui::Begin("Exposure Control");
