@@ -101,13 +101,3 @@ VkCommandPool CommandBufferManager::GetCommandPool() const
 {
     return m_commandPool;
 }
-
-VkCommandBuffer CommandBufferManager::AllocateSecondary(uint32_t frameIndex)
-{
-    throw std::runtime_error("Secondary command buffers not implemented yet");
-}
-
-void CommandBufferManager::BeginSecondary(VkCommandBuffer cmd, VkFramebuffer framebuffer)
-{
-
-}

@@ -25,10 +25,10 @@ public:
     void CreateGBufferResources(Device* device, VmaAllocator allocator);
 
     VkSwapchainKHR GetSwapChain();
-    std::vector<VkImage> GetSwapChainImages();
+    const std::vector<VkImage>& GetSwapChainImages() const { return m_swapChainImages; }
     VkFormat GetSwapChainImageFormat();
     VkExtent2D GetSwapChainExtent();
-    std::vector<VkImageView> GetSwapChainImageViews();
+    const std::vector<VkImageView>& GetSwapChainImageViews() const { return m_swapChainImageViews; }
     VkImageView GetDepthImageView();
     VkFormat GetDepthFormat();
     VkImage GetDepthImage();

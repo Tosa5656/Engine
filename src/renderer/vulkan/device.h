@@ -49,6 +49,7 @@ public:
     void DestroyTimestampQueryPool();
 
     uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+    bool IsMemoryHeapDeviceLocal(uint32_t heapIndex) const;
 private:
     Instance* m_instance;
 
@@ -59,6 +60,7 @@ private:
 
     VkQueryPool m_timestampQueryPool = VK_NULL_HANDLE;
     float m_timestampPeriod = 0.0f;
+    VkPhysicalDeviceMemoryProperties m_memProperties{};
 
     const std::vector<const char*> m_deviceExtensions = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,

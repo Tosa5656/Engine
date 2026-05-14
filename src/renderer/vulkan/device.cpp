@@ -78,6 +78,8 @@ void Device::PickPhysicalDevice(Instance* instance, Surface* surface)
 
     if (m_physicalDevice == VK_NULL_HANDLE)
         throw std::runtime_error("failed to find a suitable GPU!");
+
+    vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &m_memProperties);
 }
 
 QueueFamilyIndices Device::FindQueueFamilies(VkPhysicalDevice device, Surface* surface)
@@ -208,16 +210,20 @@ void Device::DestroyTimestampQueryPool()
 
 uint32_t Device::FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
 {
-    VkPhysicalDeviceMemoryProperties memProperties;
-    vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &memProperties);
-
-    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++)
+    for (uint32_t i = 0; i < m_memProperties.memoryTypeCount; i++)
     {
-        if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
+        if ((typeFilter & (1 << i)) && (m_memProperties.memoryTypes[i].propertyFlags & properties) == properties)
         {
             return i;
         }
     }
 
     throw std::runtime_error("failed to find suitable memory type!");
+}
+
+bool Device::IsMemoryHeapDeviceLocal(uint32_t heapIndex) const
+{
+    if (heapIndex >= m_memProperties.memoryHeapCount)
+        return false;
+    return m_memProperties.memoryHeaps[heapIndex].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT;
 }

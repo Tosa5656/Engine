@@ -248,7 +248,7 @@ void Renderer::Init(GLFWwindow *window, Input* input)
 
     m_device.CreateTimestampQueryPool();
 
-    m_gui.Init(m_device.GetDevice(), m_instance.GetInstance(), m_device.GetPhysicalDevice(), m_device.GetGraphicsQueueFamilyIndex(&m_surface), m_device.GetGraphicsQueue(), m_window, VK_NULL_HANDLE);
+    m_gui.Init(m_device.GetDevice(), m_instance.GetInstance(), m_device.GetPhysicalDevice(), m_device.GetGraphicsQueueFamilyIndex(&m_surface), m_device.GetGraphicsQueue(), m_window, VK_NULL_HANDLE, static_cast<uint32_t>(m_swapChain.GetSwapChainImages().size()));
 }
 
 void Renderer::Render()
@@ -277,13 +277,14 @@ void Renderer::Render()
     if (statm)
     {
         long pageSize = sysconf(_SC_PAGESIZE);
-        long rss;
-        statm >> rss;
+        long size, rss;
+        statm >> size >> rss;
         cpuMemory = static_cast<uint64_t>(rss) * pageSize;
     }
 #endif
 
-    m_gui.UpdateStats(m_deltaTime, gpuMemoryUsed, cpuMemory);
+    m_gui.NewFrame();
+    m_gui.UpdateStats(m_deltaTime, gpuMemoryUsed, gpuMemoryBudget, cpuMemory);
     m_gui.DebugInfo(static_cast<int>(m_fps));
 
     {
@@ -415,7 +416,8 @@ void Renderer::Render()
     vkResetCommandBuffer(cmd, 0);
 
     VkCommandBufferBeginInfo beginInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
-    vkBeginCommandBuffer(cmd, &beginInfo);
+    if (vkBeginCommandBuffer(cmd, &beginInfo) != VK_SUCCESS)
+        throw std::runtime_error("failed to begin command buffer!");
 
     vkCmdResetQueryPool(cmd, m_device.GetTimestampQueryPool(), 0, 2);
     vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, m_device.GetTimestampQueryPool(), 0);
@@ -963,7 +965,8 @@ void Renderer::Render()
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
-    vkResetFences(m_device.GetDevice(), 1, &m_inFlightFences[m_currentFrame]);
+    if (vkResetFences(m_device.GetDevice(), 1, &m_inFlightFences[m_currentFrame]) != VK_SUCCESS)
+        throw std::runtime_error("failed to reset fence!");
 
     if (vkQueueSubmit(m_device.GetGraphicsQueue(), 1, &submitInfo, m_inFlightFences[m_currentFrame]) != VK_SUCCESS)
         throw std::runtime_error("failed to submit draw command buffer!");

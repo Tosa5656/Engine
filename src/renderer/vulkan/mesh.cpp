@@ -11,6 +11,12 @@ void Mesh::SetDeviceAndAllocator(Device* device, CommandBufferManager* cmdManage
     m_device = device;
     m_commandBufferManager = cmdManager;
     m_allocator = allocator;
+
+    VkFenceCreateInfo fenceInfo{};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+    if (m_uploadFence == VK_NULL_HANDLE && device)
+        vkCreateFence(device->GetDevice(), &fenceInfo, nullptr, &m_uploadFence);
 }
 
 void Mesh::Init(Device* device, CommandBufferManager* cmdManager, VmaAllocator allocator, const std::vector<MeshVertex>& vertices, const std::vector<MeshIndex>& indices)
@@ -157,8 +163,9 @@ void Mesh::CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &commandBuffer;
 
-    vkQueueSubmit(m_device->GetGraphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(m_device->GetGraphicsQueue());
+    vkResetFences(m_device->GetDevice(), 1, &m_uploadFence);
+    vkQueueSubmit(m_device->GetGraphicsQueue(), 1, &submitInfo, m_uploadFence);
+    vkWaitForFences(m_device->GetDevice(), 1, &m_uploadFence, VK_TRUE, UINT64_MAX);
 
     vkFreeCommandBuffers(m_device->GetDevice(), m_commandBufferManager->GetCommandPool(), 1, &commandBuffer);
 }

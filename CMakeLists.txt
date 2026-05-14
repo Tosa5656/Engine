@@ -27,9 +27,9 @@ set(PROJECT_SOURCES src/main.cpp
                     src/renderer/vulkan/scene.cpp
                     src/renderer/vulkan/camera.cpp
                     src/renderer/vulkan/material.cpp
-                    src/renderer/vulkan/computepipeline.cpp
                     src/renderer/vulkan/texture.cpp
                     src/renderer/vulkan/texturearray.cpp
+                    src/renderer/vulkan/stb_image_impl.cpp
                     src/utils/input/input.cpp
                     src/renderer/vulkan/light/light.cpp
                     src/renderer/vulkan/light/directional.cpp
@@ -83,8 +83,6 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(stb)
 
 include_directories(${stb_SOURCE_DIR})
-
-add_compile_definitions(STB_IMAGE_STATIC)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE GPUOpen::VulkanMemoryAllocator)
 

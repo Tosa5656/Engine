@@ -9,6 +9,8 @@
 #include <iostream>
 #include <unordered_map>
 
+#include <cmath>
+
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 #include <glm/glm.hpp>
@@ -249,7 +251,8 @@ private:
             glm::vec2 deltaUV1 = uv1 - uv0;
             glm::vec2 deltaUV2 = uv2 - uv0;
 
-            float r = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x);
+            float denom = deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x;
+            float r = (std::abs(denom) > 1e-10f) ? 1.0f / denom : 0.0f;
 
             glm::vec3 tangent;
             tangent.x = (deltaPos1.x * deltaUV2.y - deltaPos2.x * deltaUV1.y) * r;

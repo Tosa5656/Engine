@@ -1,7 +1,7 @@
 #include "imgui.h"
 #include <cstring>
 
-void GUI::Init(VkDevice device, VkInstance instance, VkPhysicalDevice physicalDevice, uint32_t graphicsQueueFamilyIndex, VkQueue graphicsQueue, GLFWwindow* window, VkRenderPass renderPass)
+void GUI::Init(VkDevice device, VkInstance instance, VkPhysicalDevice physicalDevice, uint32_t graphicsQueueFamilyIndex, VkQueue graphicsQueue, GLFWwindow* window, VkRenderPass renderPass, uint32_t imageCount)
 {
     m_device = device;
     m_instance = instance;
@@ -28,7 +28,7 @@ void GUI::Init(VkDevice device, VkInstance instance, VkPhysicalDevice physicalDe
     initInfo.DescriptorPool = VK_NULL_HANDLE;
     initInfo.DescriptorPoolSize = 1000;
     initInfo.MinImageCount = 2;
-    initInfo.ImageCount = 2;
+    initInfo.ImageCount = imageCount;
     initInfo.CheckVkResultFn = nullptr;
     initInfo.UseDynamicRendering = true;
     initInfo.PipelineInfoMain.PipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
@@ -60,30 +60,27 @@ void GUI::DebugConsole()
 
 void GUI::DebugInfo(int fps)
 {
-    ImGui_ImplVulkan_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
-
     ImGui::Begin("Debug Info");
 
     ImGui::Text("FPS: %d", fps);
     ImGui::Text("Frame Time: %.2f ms", m_frameTime);
     ImGui::Text("Delta Time: %.4f s", m_deltaTime);
     ImGui::Separator();
-    ImGui::Text("GPU Memory: %.2f MB", m_gpuMemory / 1024.0f / 1024.0f);
-    ImGui::Text("CPU Memory: %.2f MB", m_cpuMemory / 1024.0f / 1024.0f);
+    ImGui::Text("GPU Memory: %.0f / %.0f MB", m_gpuMemory / 1024.0f / 1024.0f, m_gpuMemoryBudget / 1024.0f / 1024.0f);
+    ImGui::Text("RAM: %.0f MB", m_cpuMemory / 1024.0f / 1024.0f);
     ImGui::Separator();
     ImGui::Text("Draw Calls: %d", m_drawCalls);
 
     ImGui::End();
 }
 
-void GUI::UpdateStats(float deltaTime, uint64_t gpuMemory, uint64_t cpuMemory)
+void GUI::UpdateStats(float deltaTime, uint64_t gpuMemory, uint64_t gpuMemoryBudget, uint64_t cpuMemory)
 {
     m_deltaTime = deltaTime;
     m_frameTime = deltaTime * 1000.0f;
     m_fps = deltaTime > 0.0f ? 1.0f / deltaTime : 0.0f;
     m_gpuMemory = gpuMemory;
+    m_gpuMemoryBudget = gpuMemoryBudget;
     m_cpuMemory = cpuMemory;
     m_drawCalls = ImGui::GetDrawData() ? ImGui::GetDrawData()->CmdListsCount : 0;
 }

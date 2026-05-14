@@ -86,7 +86,6 @@ void SwapChain::Recreate(Device* device, GLFWwindow* window, Surface* surface, C
     cmdManager->Recreate(device->GetGraphicsQueueFamilyIndex(m_surface));
     Create(device, window, surface, allocator);
 
-    m_swapChainImageViews.clear();
     CreateImageViews(device);
 }
 
@@ -163,11 +162,6 @@ VkSwapchainKHR SwapChain::GetSwapChain()
     return m_swapChain;
 }
 
-std::vector<VkImage> SwapChain::GetSwapChainImages()
-{
-    return m_swapChainImages;
-}
-
 VkFormat SwapChain::GetSwapChainImageFormat()
 {
     return m_swapChainImageFormat;
@@ -176,11 +170,6 @@ VkFormat SwapChain::GetSwapChainImageFormat()
 VkExtent2D SwapChain::GetSwapChainExtent()
 {
     return m_swapChainExtent;
-}
-
-std::vector<VkImageView> SwapChain::GetSwapChainImageViews()
-{
-    return m_swapChainImageViews;
 }
 
 void SwapChain::CreateDepthResources(Device* device, VmaAllocator allocator)

@@ -158,12 +158,12 @@ void PipelineManager::Create(Device* device, SwapChain* swapChain, VkDescriptorS
     vkDestroyShaderModule(device->GetDevice(), vertShaderModule, nullptr);
 }
 
-VkShaderModule PipelineManager::CreateShaderModule(const std::vector<char> &code, Device* device)
+VkShaderModule PipelineManager::CreateShaderModule(const std::vector<uint32_t> &code, Device* device)
 {
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    createInfo.codeSize = code.size();
-    createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+    createInfo.codeSize = code.size() * sizeof(uint32_t);
+    createInfo.pCode = code.data();
 
     VkShaderModule shaderModule;
     if (vkCreateShaderModule(device->GetDevice(), &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
@@ -1075,7 +1075,7 @@ void PipelineManager::Shutdown(Device* device)
     }
 }
 
-std::vector<char> PipelineManager::ReadFile(const std::string &filename)
+std::vector<uint32_t> PipelineManager::ReadFile(const std::string &filename)
 {
     std::ifstream file(filename, std::ios::ate | std::ios::binary);
 
@@ -1083,11 +1083,9 @@ std::vector<char> PipelineManager::ReadFile(const std::string &filename)
         throw std::runtime_error("failed to open file!");
 
     size_t fileSize = (size_t) file.tellg();
-    std::vector<char> buffer(fileSize);
-
+    std::vector<uint32_t> buffer(fileSize / sizeof(uint32_t));
     file.seekg(0);
-    file.read(buffer.data(), fileSize);
+    file.read(reinterpret_cast<char*>(buffer.data()), static_cast<std::streamsize>(fileSize));
     file.close();
-
     return buffer;
 }

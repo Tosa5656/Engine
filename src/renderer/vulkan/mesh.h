@@ -105,4 +105,5 @@ private:
     VmaAllocation m_vertexBufferAllocation = VK_NULL_HANDLE;
     VkBuffer m_indexBuffer = VK_NULL_HANDLE;
     VmaAllocation m_indexBufferAllocation = VK_NULL_HANDLE;
+    VkFence m_uploadFence = VK_NULL_HANDLE;
 };

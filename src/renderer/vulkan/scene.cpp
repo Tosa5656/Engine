@@ -77,7 +77,7 @@ Camera* Scene::GetCamera()
     return &m_camera;
 }
 
-std::vector<Object*> Scene::GetObjects() 
+const std::vector<Object*>& Scene::GetObjects() const 
 {
     return m_objects;
 }

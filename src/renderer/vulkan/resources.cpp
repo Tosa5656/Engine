@@ -270,8 +270,11 @@ void ResourceManager::GetMemoryBudget(uint64_t& gpuMemoryUsed, uint64_t& gpuMemo
     
     for (int i = 0; i < VK_MAX_MEMORY_HEAPS; i++)
     {
-        gpuMemoryUsed += budgets[i].usage;
-        gpuMemoryBudget += budgets[i].budget;
+        if (m_device->IsMemoryHeapDeviceLocal(i))
+        {
+            gpuMemoryUsed += budgets[i].usage;
+            gpuMemoryBudget += budgets[i].budget;
+        }
     }
 }
 

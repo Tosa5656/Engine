@@ -22,9 +22,6 @@ public:
     VkCommandBuffer ResetAndBegin(uint32_t frameIndex);
     void End(VkCommandBuffer cmd);
 
-    VkCommandBuffer AllocateSecondary(uint32_t frameIndex);
-    void BeginSecondary(VkCommandBuffer cmd, VkFramebuffer framebuffer = VK_NULL_HANDLE);
-
     VkCommandBuffer GetCommandBuffer(uint32_t frameIndex) const;
     VkCommandPool GetCommandPool() const;
 

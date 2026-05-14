@@ -2,7 +2,7 @@
 #include "resources.h"
 #include <array>
 
-DescriptorsManager::DescriptorsManager() : m_dummySampler(VK_NULL_HANDLE), m_dummyImageView(VK_NULL_HANDLE), m_dummyImageMemory(VK_NULL_HANDLE), m_normalMapSetLayout(VK_NULL_HANDLE), m_nullNormalMapDescriptorSet(VK_NULL_HANDLE), m_heightMapSetLayout(VK_NULL_HANDLE), m_nullHeightMapDescriptorSet(VK_NULL_HANDLE) {}
+DescriptorsManager::DescriptorsManager() = default;
 DescriptorsManager::~DescriptorsManager() {}
 
 void DescriptorsManager::Init(Device* device, SwapChain* swapChain, ResourceManager* resourceManager, uint32_t maxObjects)
@@ -665,16 +665,6 @@ VkDescriptorPool DescriptorsManager::GetDescriptorPool()
 VkDescriptorSetLayout DescriptorsManager::GetDescriptorSetLayout(uint32_t index)
 {
     return index == 0 ? m_perFrameSetLayout : m_perObjectSetLayout;
-}
-
-std::vector<VkDescriptorSet> DescriptorsManager::GetDescriptorSets()
-{
-    return m_perFrameDescriptorSets;
-}
-
-std::vector<VkDescriptorSet> DescriptorsManager::GetPerObjectDescriptorSets()
-{
-    return m_perObjectDescriptorSets;
 }
 
 VkDescriptorSet DescriptorsManager::CreateTextureDescriptorSet(Texture* texture)

@@ -38,7 +38,7 @@
 #include <utils/input/input.h>
 #include <gui-debug/imgui/imgui.h>
 
-static bool is_glfw_initialized = false;
+inline bool is_glfw_initialized = false;
 
 static void InitGLFW()
 {

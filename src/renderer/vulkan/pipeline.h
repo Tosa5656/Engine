@@ -29,7 +29,7 @@ public:
     void CreateClusteredForwardPipeline(Device* device, SwapChain* swapChain, VkDescriptorSetLayout perFrameSetLayout, VkDescriptorSetLayout perObjectSetLayout, VkDescriptorSetLayout textureSetLayout, VkDescriptorSetLayout normalMapSetLayout, VkDescriptorSetLayout heightMapSetLayout, VkDescriptorSetLayout clusterSetLayout);
     void CreateLuminancePipeline(Device* device, VkDescriptorSetLayout luminanceSetLayout);
     void Shutdown(Device* device);
-    VkShaderModule CreateShaderModule(const std::vector<char> &code, Device* device);
+    VkShaderModule CreateShaderModule(const std::vector<uint32_t> &code, Device* device);
 
     VkPipeline GetGraphicsPipeline();
     VkPipeline GetLinePipeline() const { return m_lineGraphicsPipeline; }
@@ -50,10 +50,10 @@ public:
     VkPipelineLayout GetTonemapPipelineLayout() const { return m_tonemapPipelineLayout; }
 
 private:
-    std::vector<char> ReadFile(const std::string& filename);
+    std::vector<uint32_t> ReadFile(const std::string& filename);
 
-    VkPipelineLayout m_pipelineLayout;
-    VkPipeline m_graphicsPipeline;
+    VkPipelineLayout m_pipelineLayout = VK_NULL_HANDLE;
+    VkPipeline m_graphicsPipeline = VK_NULL_HANDLE;
     VkPipeline m_lineGraphicsPipeline = VK_NULL_HANDLE;
     VkPipelineRenderingCreateInfo m_pipelineRenderingCreateInfo{};
 

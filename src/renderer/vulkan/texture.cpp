@@ -1,8 +1,7 @@
-#define STB_IMAGE_IMPLEMENTATION
-
 #include "texture.h"
 
 #include <cmath>
+#include <memory>
 #include <stdexcept>
 
 #include <renderer/vulkan/device.h>
@@ -24,7 +23,9 @@ void Texture::Init(Device* device, VmaAllocator allocator, VkCommandPool command
 void Texture::Load(const std::string& path)
 {
     int texWidth, texHeight, texChannels;
-    stbi_uc* pixels = stbi_load(path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+    auto pixels = std::unique_ptr<stbi_uc, decltype(&stbi_image_free)>(
+        stbi_load(path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha),
+        stbi_image_free);
 
     if (!pixels)
         throw std::runtime_error("failed to load texture: " + path);
@@ -35,9 +36,7 @@ void Texture::Load(const std::string& path)
 
     VkDeviceSize imageSize = static_cast<VkDeviceSize>(m_width * m_height * 4);
 
-    CreateImage(m_width, m_height, m_mipLevels, VK_FORMAT_R8G8B8A8_SRGB, pixels);
-
-    stbi_image_free(pixels);
+    CreateImage(m_width, m_height, m_mipLevels, VK_FORMAT_R8G8B8A8_SRGB, pixels.get());
 }
 
 void Texture::CreateImage(uint32_t w, uint32_t h, uint32_t mips, VkFormat format, const void* data)

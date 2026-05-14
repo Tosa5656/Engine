@@ -24,7 +24,7 @@ public:
     void RemoveLight(Light* light);
 
     Camera* GetCamera();
-    std::vector<Object*> GetObjects();
+    const std::vector<Object*>& GetObjects() const;
     const std::vector<Light*>& GetLights() const;
     LightUBO PackLight(const Light* light) const;
 private:

@@ -29,8 +29,8 @@ public:
 
     VkDescriptorPool GetDescriptorPool();
     VkDescriptorSetLayout GetDescriptorSetLayout(uint32_t index);
-    std::vector<VkDescriptorSet> GetDescriptorSets();
-    std::vector<VkDescriptorSet> GetPerObjectDescriptorSets();
+    const std::vector<VkDescriptorSet>& GetDescriptorSets() const { return m_perFrameDescriptorSets; }
+    const std::vector<VkDescriptorSet>& GetPerObjectDescriptorSets() const { return m_perObjectDescriptorSets; }
     VkDescriptorSetLayout GetTextureSetLayout() const { return m_textureSetLayout; }
     VkDescriptorSetLayout GetLightSetLayout() const { return m_lightSetLayout; }
     VkDescriptorSet GetLightDescriptorSet() const { return m_lightDescriptorSet; }
@@ -73,26 +73,26 @@ public:
     VkDescriptorSet GetLuminanceDescriptorSet() const { return m_luminanceDescriptorSet; }
 
 private:
-    Device* m_device;
-    SwapChain* m_swapChain;
-    ResourceManager* m_resourceManager;
+    Device* m_device = nullptr;
+    SwapChain* m_swapChain = nullptr;
+    ResourceManager* m_resourceManager = nullptr;
 
-    VkDescriptorPool m_descriptorPool;
+    VkDescriptorPool m_descriptorPool = VK_NULL_HANDLE;
     std::vector<VkDescriptorSet> m_perFrameDescriptorSets;
     std::vector<VkDescriptorSet> m_perObjectDescriptorSets;
-    VkDescriptorSetLayout m_perFrameSetLayout;
-    VkDescriptorSetLayout m_perObjectSetLayout;
-    VkDescriptorSetLayout m_textureSetLayout;
+    VkDescriptorSetLayout m_perFrameSetLayout = VK_NULL_HANDLE;
+    VkDescriptorSetLayout m_perObjectSetLayout = VK_NULL_HANDLE;
+    VkDescriptorSetLayout m_textureSetLayout = VK_NULL_HANDLE;
     VkDescriptorSetLayout m_lightSetLayout = VK_NULL_HANDLE;
     VkDescriptorSet m_lightDescriptorSet = VK_NULL_HANDLE;
-    VkDescriptorSetLayout m_normalMapSetLayout;
-    VkDescriptorSetLayout m_heightMapSetLayout;
-    VkDescriptorSet m_nullTextureDescriptorSet;
-    VkDescriptorSet m_nullNormalMapDescriptorSet;
-    VkDescriptorSet m_nullHeightMapDescriptorSet;
-    VkSampler m_dummySampler;
-    VkImageView m_dummyImageView;
-    VkDeviceMemory m_dummyImageMemory;
+    VkDescriptorSetLayout m_normalMapSetLayout = VK_NULL_HANDLE;
+    VkDescriptorSetLayout m_heightMapSetLayout = VK_NULL_HANDLE;
+    VkDescriptorSet m_nullTextureDescriptorSet = VK_NULL_HANDLE;
+    VkDescriptorSet m_nullNormalMapDescriptorSet = VK_NULL_HANDLE;
+    VkDescriptorSet m_nullHeightMapDescriptorSet = VK_NULL_HANDLE;
+    VkSampler m_dummySampler = VK_NULL_HANDLE;
+    VkImageView m_dummyImageView = VK_NULL_HANDLE;
+    VkDeviceMemory m_dummyImageMemory = VK_NULL_HANDLE;
 
     VkDescriptorSetLayout m_gbufferSetLayout = VK_NULL_HANDLE;
     VkDescriptorSetLayout m_compositeSetLayout = VK_NULL_HANDLE;

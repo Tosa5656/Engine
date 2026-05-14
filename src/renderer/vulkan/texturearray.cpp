@@ -1,8 +1,7 @@
-#define STB_IMAGE_IMPLEMENTATION
-
 #include "texturearray.h"
 
 #include <cmath>
+#include <memory>
 #include <stdexcept>
 
 #include <renderer/vulkan/device.h>
@@ -31,13 +30,14 @@ void TextureArray::AddTexture(const std::string& path)
         throw std::runtime_error("Maximum texture count reached!");
 
     int texWidth, texHeight, texChannels;
-    stbi_uc* pixels = stbi_load(path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+    auto pixels = std::unique_ptr<stbi_uc, decltype(&stbi_image_free)>(
+        stbi_load(path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha),
+        stbi_image_free);
 
     if (!pixels)
         throw std::runtime_error("failed to load texture: " + path);
 
     LoadedTexture loaded;
-    loaded.pixels.push_back(pixels);
     loaded.width = static_cast<uint32_t>(texWidth);
     loaded.height = static_cast<uint32_t>(texHeight);
     loaded.mipLevels = GetMipLevelCount(loaded.width, loaded.height);
@@ -49,7 +49,9 @@ void TextureArray::AddTexture(const std::string& path)
     info.index = static_cast<uint32_t>(m_loadedTextures.size());
     m_textures.push_back(info);
 
-    m_loadedTextures.push_back(loaded);
+    loaded.pixels.push_back(pixels.get());
+    pixels.release();
+    m_loadedTextures.push_back(std::move(loaded));
 }
 
 void TextureArray::Build()
