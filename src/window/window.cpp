@@ -6,12 +6,16 @@ Window::Window()
     m_windowClosed = false;
 }
 
-Window::Window(std::string title, int width, int height)
+Window::Window(std::string title, int width, int height, std::function<void()> awake, std::function<void()> start, std::function<void()> update)
 {
     m_title = title;
     m_width = width;
     m_height = height;
     m_windowClosed = false;
+
+    m_awake = awake;
+    m_start = start;
+    m_update = update;
 
     Init();
 }
@@ -37,7 +41,11 @@ void Window::Init()
     glfwSetFramebufferSizeCallback(m_window, FramebufferResizeCallback);
     glfwSetKeyCallback(m_window, KeyCallback);
 
-    glfwMakeContextCurrent(m_window);
+    m_awake();
+
+    glfwSwapInterval(0);
+
+    m_start();
 
     m_input = Input(m_window);
     m_renderer.Init(m_window, &m_input);
@@ -50,7 +58,9 @@ void Window::Init()
 void Window::Update()
 {
     m_input.Update();
+    glfwPollEvents();
     m_renderer.Render();
+    m_update();
 }
 
 void Window::Close()
@@ -119,8 +129,10 @@ void Window::FramebufferResizeCallback(GLFWwindow *window, int width, int height
 void Window::KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mods)
 {
     auto win = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
+    win->GetInput()->OnKeyEvent(key, action);
     if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
     {
         win->GetInput()->SetCursorCaptured(true);
+        win->GetRenderer()->SetShowCursor(false);
     }
 }

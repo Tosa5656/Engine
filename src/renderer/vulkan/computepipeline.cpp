@@ -5,7 +5,7 @@
 ComputePipeline::ComputePipeline() {}
 ComputePipeline::~ComputePipeline() {}
 
-void ComputePipeline::Create(Device* device, const std::string& compShaderPath, VkDescriptorSetLayout setLayout)
+void ComputePipeline::Create(Device* device, const std::string& compShaderPath, const std::vector<VkDescriptorSetLayout>& setLayouts)
 {
     auto compShaderCode = ReadFile(compShaderPath);
     VkShaderModule compShaderModule = CreateShaderModule(compShaderCode, device);
@@ -18,8 +18,8 @@ void ComputePipeline::Create(Device* device, const std::string& compShaderPath, 
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &setLayout;
+    pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(setLayouts.size());
+    pipelineLayoutInfo.pSetLayouts = setLayouts.data();
 
     if (vkCreatePipelineLayout(device->GetDevice(), &pipelineLayoutInfo, nullptr, &m_pipelineLayout) != VK_SUCCESS)
         throw std::runtime_error("failed to create compute pipeline layout!");

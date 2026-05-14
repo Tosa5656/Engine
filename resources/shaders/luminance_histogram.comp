@@ -1,0 +1,33 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(set = 0, binding = 0) uniform sampler2D hdrColor;
+
+layout(set = 0, binding = 1, std430) buffer HistogramBuf {
+    uint bins[256];
+} histogram;
+
+shared uint sharedHist[256];
+
+void main()
+{
+    ivec2 texSize = textureSize(hdrColor, 0);
+    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+
+    sharedHist[gl_LocalInvocationIndex] = 0;
+    barrier();
+
+    if (coord.x < texSize.x && coord.y < texSize.y)
+    {
+        vec3 color = texelFetch(hdrColor, coord, 0).rgb;
+        float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
+        float logLuma = log2(max(luma, 1e-6));
+        int bin = int(clamp((logLuma + 16.0) * (256.0 / 32.0), 0.0, 255.0));
+        atomicAdd(sharedHist[bin], 1);
+    }
+
+    barrier();
+
+    atomicAdd(histogram.bins[gl_LocalInvocationIndex], sharedHist[gl_LocalInvocationIndex]);
+}

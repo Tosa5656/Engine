@@ -31,7 +31,6 @@
 #include <renderer/vulkan/object.h>
 #include <renderer/vulkan/material.h>
 #include <renderer/vulkan/camera.h>
-#include <renderer/vulkan/computepipeline.h>
 #include <renderer/vulkan/scene.h>
 #include <renderer/vulkan/texture.h>
 #include <renderer/vulkan/texturearray.h>
@@ -81,12 +80,14 @@ public:
     void Destroy();
 
     void SetFramebufferResized(bool resized);
+    void SetShowCursor(bool show);
 
     VkDevice GetDevice();
     float GetDeltaTime();
 private:
     void CreateSyncObjects();
     void CreatePerImageSemaphores();
+    void RecreatePerImageSemaphores();
 
     GLFWwindow* m_window;
 
@@ -104,21 +105,40 @@ private:
     Material m_material;
     Material m_material2;
     Material m_material3;
+    Material m_material4;
+    Material m_material5;
     TextureArray m_textureAtlas;
     Texture m_singleTexture;
     Texture m_normalMap;
     Texture m_heightMap;
     Input* m_input;
 
-    ComputePipeline m_computePipeline;
     GUI m_gui;
-    bool m_computeResultPrinted = false;
 
+    bool  m_autoExposure = false;
+    float m_manualExposure = 1.0f;
+    float m_targetLuminance = 0.18f;
+    float m_minExposure = 0.05f;
+    float m_maxExposure = 3.0f;
+    float m_adaptSpeed = 1.0f;
+    float m_smoothedExposure = 1.0f;
+    bool  m_luminanceValid = false;
+
+#ifndef NDEBUG
+    Mesh m_debugSphere;
+    Mesh m_debugCone;
+    Mesh m_debugArrow;
+    bool m_debugLightsEnabled = true;
+#endif
     std::array<VkSemaphore, MAX_FRAMES_IN_FLIGHT> m_imageAvailableSemaphores;
     std::vector<VkSemaphore> m_renderFinishedSemaphores;
     std::array<VkFence, MAX_FRAMES_IN_FLIGHT> m_inFlightFences;
     std::vector<VkFence> m_imagesInFlight;
     size_t m_currentFrame = 0;
+    bool m_destroyed = false;
     bool m_framebufferResized = false;
     float m_deltaTime = 0.0f;
+    float m_fps = 0.0f;
+    float m_fpsAccumulator = 0.0f;
+    int m_fpsFrameCount = 0;
 };

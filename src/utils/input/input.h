@@ -162,6 +162,7 @@ public:
     void SetCursorCaptured(bool captured);
 
     void Update();
+    void OnKeyEvent(int key, int action);
 private:
     GLFWwindow* window;
     std::unordered_map<int, bool> previousState;

@@ -29,6 +29,7 @@ public:
     uint32_t GetUBOSlot() const { return m_uboSlot; }
     Material* GetMaterial() { return m_material; }
     bool IsActive() { return m_active; }
+    bool IsTransparent() { return m_material && m_material->GetAlphaMode() == AlphaMode::Blend; }
 
     void SetDeviceAndAllocator(Device* device, CommandBufferManager* cmdManager, VmaAllocator allocator);
     void SetMaterial(Material* material);

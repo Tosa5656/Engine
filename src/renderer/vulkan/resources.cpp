@@ -31,16 +31,40 @@ void ResourceManager::Cleanup()
         m_objectBuffer = VK_NULL_HANDLE;
     }
 
-    if (m_computeResultBuffer != VK_NULL_HANDLE)
+    if (m_lightSSBO != VK_NULL_HANDLE)
     {
-        vmaDestroyBuffer(m_allocator, m_computeResultBuffer, m_computeResultAllocation);
-        m_computeResultBuffer = VK_NULL_HANDLE;
+        vmaDestroyBuffer(m_allocator, m_lightSSBO, m_lightAllocation);
+        m_lightSSBO = VK_NULL_HANDLE;
     }
 
-    if (m_computeStagingBuffer != VK_NULL_HANDLE)
+    if (m_clusterCountSSBO != VK_NULL_HANDLE)
     {
-        vmaDestroyBuffer(m_allocator, m_computeStagingBuffer, m_computeStagingAllocation);
-        m_computeStagingBuffer = VK_NULL_HANDLE;
+        vmaDestroyBuffer(m_allocator, m_clusterCountSSBO, m_clusterCountAllocation);
+        m_clusterCountSSBO = VK_NULL_HANDLE;
+    }
+
+    if (m_clusterIndexSSBO != VK_NULL_HANDLE)
+    {
+        vmaDestroyBuffer(m_allocator, m_clusterIndexSSBO, m_clusterIndexAllocation);
+        m_clusterIndexSSBO = VK_NULL_HANDLE;
+    }
+
+    if (m_clusterGridInfoUBO != VK_NULL_HANDLE)
+    {
+        vmaDestroyBuffer(m_allocator, m_clusterGridInfoUBO, m_clusterGridInfoAllocation);
+        m_clusterGridInfoUBO = VK_NULL_HANDLE;
+    }
+
+    if (m_luminanceStorageBuffer != VK_NULL_HANDLE)
+    {
+        vmaDestroyBuffer(m_allocator, m_luminanceStorageBuffer, m_luminanceStorageAllocation);
+        m_luminanceStorageBuffer = VK_NULL_HANDLE;
+    }
+
+    if (m_luminanceStagingBuffer != VK_NULL_HANDLE)
+    {
+        vmaDestroyBuffer(m_allocator, m_luminanceStagingBuffer, m_luminanceStagingAllocation);
+        m_luminanceStagingBuffer = VK_NULL_HANDLE;
     }
 }
 
@@ -77,7 +101,7 @@ void ResourceManager::CreateUniformBuffers()
 void ResourceManager::CreateObjectBuffer(uint32_t maxObjects)
 {
     VkPhysicalDevice physicalDevice = m_device->GetPhysicalDevice();
-    
+
     VkPhysicalDeviceProperties props;
     vkGetPhysicalDeviceProperties(physicalDevice, &props);
     m_objectUBOStride = static_cast<uint32_t>(sizeof(PerObjectUBO));
@@ -97,11 +121,90 @@ void ResourceManager::UpdatePerFrameUBO(uint32_t currentImage, Camera& camera)
     ubo.view = camera.GetViewMatrix();
     ubo.proj = camera.GetProjectionMatrix();
     ubo.cameraPos = camera.GetPosition();
+    ubo.nearPlane = camera.GetNearPlane();
+    ubo.farPlane = camera.GetFarPlane();
+    ubo.exposure = m_exposure;
 
     void* data;
     vmaMapMemory(m_allocator, m_perFrameAllocations[currentImage], &data);
     memcpy(data, &ubo, sizeof(ubo));
     vmaUnmapMemory(m_allocator, m_perFrameAllocations[currentImage]);
+}
+
+void ResourceManager::CreateLightBuffers()
+{
+    VkDeviceSize bufferSize = sizeof(LightUBO) * MAX_LIGHTS + sizeof(int);
+    m_lightBufferSize = bufferSize;
+    CreateBuffer(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, m_lightSSBO, m_lightAllocation);
+}
+
+void ResourceManager::UpdateLightBuffer(const std::vector<LightUBO>& lights, int lightCount)
+{
+    VkDeviceSize bufferSize = sizeof(LightUBO) * MAX_LIGHTS + sizeof(int);
+
+    void* mappedData;
+    vmaMapMemory(m_allocator, m_lightAllocation, &mappedData);
+    memset(mappedData, 0, bufferSize);
+    if (lightCount > 0)
+        memcpy(mappedData, lights.data(), sizeof(LightUBO) * std::min(lightCount, (int)MAX_LIGHTS));
+    memcpy(static_cast<char*>(mappedData) + sizeof(LightUBO) * MAX_LIGHTS, &lightCount, sizeof(int));
+    vmaUnmapMemory(m_allocator, m_lightAllocation);
+}
+
+void ResourceManager::CreateClusterGrid(uint32_t tileCountX, uint32_t tileCountY, uint32_t depthSlices)
+{
+    m_clusterCount = tileCountX * tileCountY * depthSlices;
+
+    VkDeviceSize countSize = sizeof(uint32_t) * m_clusterCount;
+    VkDeviceSize indexSize = sizeof(uint32_t) * m_clusterCount * MAX_LIGHTS_PER_CLUSTER;
+
+    if (m_clusterCountSSBO != VK_NULL_HANDLE)
+        vmaDestroyBuffer(m_allocator, m_clusterCountSSBO, m_clusterCountAllocation);
+    if (m_clusterIndexSSBO != VK_NULL_HANDLE)
+        vmaDestroyBuffer(m_allocator, m_clusterIndexSSBO, m_clusterIndexAllocation);
+
+    CreateBuffer(countSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY, m_clusterCountSSBO, m_clusterCountAllocation);
+    CreateBuffer(indexSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY, m_clusterIndexSSBO, m_clusterIndexAllocation);
+
+    if (m_clusterGridInfoUBO == VK_NULL_HANDLE)
+    {
+        CreateBuffer(sizeof(ClusterGridBuffer), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, m_clusterGridInfoUBO, m_clusterGridInfoAllocation);
+    }
+
+    ClusterGridBuffer info{};
+    info.tileCountX = tileCountX;
+    info.tileCountY = tileCountY;
+    info.clusterCount = m_clusterCount;
+    info.depthSlices = depthSlices;
+    UpdateClusterGridInfo(info);
+}
+
+void ResourceManager::UpdateClusterGridInfo(const ClusterGridBuffer& info)
+{
+    void* data;
+    vmaMapMemory(m_allocator, m_clusterGridInfoAllocation, &data);
+    memcpy(data, &info, sizeof(info));
+    vmaUnmapMemory(m_allocator, m_clusterGridInfoAllocation);
+}
+
+void ResourceManager::CreateLuminanceBuffers()
+{
+    VkDeviceSize bufferSize = sizeof(uint32_t) * 256;
+
+    CreateBuffer(bufferSize,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VMA_MEMORY_USAGE_GPU_ONLY, m_luminanceStorageBuffer, m_luminanceStorageAllocation);
+
+    CreateBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VMA_MEMORY_USAGE_GPU_TO_CPU, m_luminanceStagingBuffer, m_luminanceStagingAllocation);
+}
+
+void ResourceManager::ReadLuminanceHistogram(uint32_t* outHistogram)
+{
+    void* mappedData;
+    vmaMapMemory(m_allocator, m_luminanceStagingAllocation, &mappedData);
+    memcpy(outHistogram, mappedData, sizeof(uint32_t) * 256);
+    vmaUnmapMemory(m_allocator, m_luminanceStagingAllocation);
 }
 
 void ResourceManager::UpdatePerObjectUBO(uint32_t slot, const PerObjectUBO& uboData)
@@ -123,6 +226,11 @@ uint32_t ResourceManager::AllocateObjectSlot()
         return slot;
     }
     return m_objectCount++;
+}
+
+void ResourceManager::FreeObjectSlot(uint32_t slot)
+{
+    m_freeSlots.push_back(slot);
 }
 
 void ResourceManager::CreateAllocator()
@@ -152,31 +260,22 @@ VmaAllocator ResourceManager::GetAllocator()
     return m_allocator;
 }
 
-VkDevice ResourceManager::GetVkDevice() {
+void ResourceManager::GetMemoryBudget(uint64_t& gpuMemoryUsed, uint64_t& gpuMemoryBudget)
+{
+    VmaBudget budgets[VK_MAX_MEMORY_HEAPS];
+    vmaGetHeapBudgets(m_allocator, budgets);
+    
+    gpuMemoryUsed = 0;
+    gpuMemoryBudget = 0;
+    
+    for (int i = 0; i < VK_MAX_MEMORY_HEAPS; i++)
+    {
+        gpuMemoryUsed += budgets[i].usage;
+        gpuMemoryBudget += budgets[i].budget;
+    }
+}
+
+VkDevice ResourceManager::GetVkDevice()
+{
     return m_device->GetDevice();
-}
-
-void ResourceManager::CreateComputeResultBuffer()
-{
-    VkDeviceSize bufferSize = sizeof(float);
-
-    CreateBuffer(bufferSize,
-                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                 VMA_MEMORY_USAGE_GPU_ONLY,
-                 m_computeResultBuffer,
-                 m_computeResultAllocation);
-
-    CreateBuffer(bufferSize,
-                 VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                 VMA_MEMORY_USAGE_CPU_ONLY,
-                 m_computeStagingBuffer,
-                 m_computeStagingAllocation);
-}
-
-void ResourceManager::ReadComputeResult(float& outResult)
-{
-    void* data;
-    vmaMapMemory(m_allocator, m_computeStagingAllocation, &data);
-    memcpy(&outResult, data, sizeof(float));
-    vmaUnmapMemory(m_allocator, m_computeStagingAllocation);
 }

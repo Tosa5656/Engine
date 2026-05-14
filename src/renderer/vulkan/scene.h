@@ -5,6 +5,8 @@
 
 #include <renderer/vulkan/camera.h>
 #include <renderer/vulkan/object.h>
+#include <renderer/vulkan/light/light.h>
+#include <renderer/vulkan/resources.h>
 
 class Scene
 {
@@ -18,10 +20,15 @@ public:
 
     void AddObject(Object* object);
     void RemoveObject(Object* object);
+    void AddLight(Light* light);
+    void RemoveLight(Light* light);
 
     Camera* GetCamera();
     std::vector<Object*> GetObjects();
+    const std::vector<Light*>& GetLights() const;
+    LightUBO PackLight(const Light* light) const;
 private:
     Camera m_camera;
     std::vector<Object*> m_objects;
+    std::vector<Light*> m_lights;
 };
