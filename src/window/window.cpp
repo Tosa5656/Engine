@@ -43,8 +43,6 @@ void Window::Init()
 
     m_awake();
 
-    glfwMakeContextCurrent(m_window);
-
     glfwSwapInterval(0);
 
     m_start();
@@ -60,6 +58,7 @@ void Window::Init()
 void Window::Update()
 {
     m_input.Update();
+    glfwPollEvents();
     m_renderer.Render();
     m_update();
 }
@@ -130,6 +129,7 @@ void Window::FramebufferResizeCallback(GLFWwindow *window, int width, int height
 void Window::KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mods)
 {
     auto win = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
+    win->GetInput()->OnKeyEvent(key, action);
     if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
     {
         win->GetInput()->SetCursorCaptured(true);

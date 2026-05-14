@@ -30,7 +30,11 @@ void Scene::Update(float deltaTime, class ResourceManager* resourceManager)
 
 void Scene::Destroy() 
 {
+    for (Object* obj : m_objects)
+        delete obj;
     m_objects.clear();
+    for (Light* light : m_lights)
+        delete light;
     m_lights.clear();
 }
 

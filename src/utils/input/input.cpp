@@ -4,13 +4,15 @@ Input::Input() : window(nullptr) {}
 
 Input::Input(GLFWwindow* win) : window(win) {}
 
+void Input::OnKeyEvent(int key, int action)
+{
+    currentState[key] = action == GLFW_PRESS || action == GLFW_REPEAT;
+}
+
 void Input::Update()
 {
-    for (int key = static_cast<int>(KeyCode::Space); key <= static_cast<int>(KeyCode::Menu); key++)
-    {
-        previousState[key] = currentState[key];
-        currentState[key] = glfwGetKey(window, key) == GLFW_PRESS;
-    }
+    for (auto& [key, state] : currentState)
+        previousState[key] = state;
 
     for (int button = static_cast<int>(MouseKeyCode::MouseLeft); button <= static_cast<int>(MouseKeyCode::Mouse8); button++)
     {
@@ -29,24 +31,34 @@ void Input::Update()
 
 bool Input::IsPressed(KeyCode key)
 {
-    return glfwGetKey(window, static_cast<int>(key)) == GLFW_PRESS;
+    int k = static_cast<int>(key);
+    auto it = currentState.find(k);
+    return it != currentState.end() && it->second;
 }
 
 bool Input::IsReleased(KeyCode key)
 {
-    return glfwGetKey(window, static_cast<int>(key)) == GLFW_RELEASE;
+    int k = static_cast<int>(key);
+    auto it = currentState.find(k);
+    return it == currentState.end() || !it->second;
 }
 
 bool Input::IsUp(KeyCode key)
 {
     int k = static_cast<int>(key);
-    return currentState[k] && !previousState[k];
+    auto cur = currentState.find(k);
+    auto prev = previousState.find(k);
+    return cur != currentState.end() && cur->second &&
+           (prev == previousState.end() || !prev->second);
 }
 
 bool Input::IsDown(KeyCode key)
 {
     int k = static_cast<int>(key);
-    return !currentState[k] && previousState[k];
+    auto cur = currentState.find(k);
+    auto prev = previousState.find(k);
+    return (cur == currentState.end() || !cur->second) &&
+           prev != previousState.end() && prev->second;
 }
 
 bool Input::IsMousePressed(MouseKeyCode button)

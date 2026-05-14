@@ -275,6 +275,7 @@ void ResourceManager::GetMemoryBudget(uint64_t& gpuMemoryUsed, uint64_t& gpuMemo
     }
 }
 
-VkDevice ResourceManager::GetVkDevice() {
+VkDevice ResourceManager::GetVkDevice()
+{
     return m_device->GetDevice();
 }

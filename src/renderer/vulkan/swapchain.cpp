@@ -81,8 +81,6 @@ void SwapChain::Recreate(Device* device, GLFWwindow* window, Surface* surface, C
         glfwWaitEvents();
     }
 
-    vkDeviceWaitIdle(device->GetDevice());
-
     Cleanup(device);
 
     cmdManager->Recreate(device->GetGraphicsQueueFamilyIndex(m_surface));

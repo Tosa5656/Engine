@@ -31,7 +31,6 @@ int main()
 
     while (window.ShouldActive())
     {
-        glfwPollEvents();
         window.Update();
     }
 

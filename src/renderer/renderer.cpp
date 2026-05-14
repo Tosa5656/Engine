@@ -10,7 +10,7 @@
 #include <renderer/vulkan/light/spot.h>
 #include <renderer/vulkan/light/debug_mesh.h>
 
-Renderer::Renderer() {}
+Renderer::Renderer() : m_destroyed(false) {}
 
 Renderer::~Renderer()
 {
@@ -152,30 +152,6 @@ void Renderer::Init(GLFWwindow *window, Input* input)
     sun->SetIntensity(10.5f);
     m_scene.AddLight(sun);
 
-    PointLight* pl1 = new PointLight();
-    pl1->SetPosition(glm::vec3(2.0f, 1.0f, 2.0f));
-    pl1->SetColor(glm::vec3(1.0f, 0.0f, 0.0f));
-    pl1->SetRadius(8.0f);
-    m_scene.AddLight(pl1);
-
-    PointLight* pl2 = new PointLight();
-    pl2->SetPosition(glm::vec3(-2.0f, 1.0f, -2.0f));
-    pl2->SetColor(glm::vec3(0.0f, 1.0f, 0.0f));
-    pl2->SetRadius(8.0f);
-    m_scene.AddLight(pl2);
-
-    PointLight* pl3 = new PointLight();
-    pl3->SetPosition(glm::vec3(2.0f, 1.0f, -2.0f));
-    pl3->SetColor(glm::vec3(0.0f, 0.0f, 1.0f));
-    pl3->SetRadius(8.0f);
-    m_scene.AddLight(pl3);
-
-    PointLight* pl4 = new PointLight();
-    pl4->SetPosition(glm::vec3(-2.0f, 1.0f, 2.0f));
-    pl4->SetColor(glm::vec3(1.0f, 1.0f, 0.0f));
-    pl4->SetRadius(8.0f);
-    m_scene.AddLight(pl4);
-
     m_descriptorManager.CreateDescriptorPool();
     m_descriptorManager.CreateDescriptorSets();
 
@@ -279,7 +255,7 @@ void Renderer::Render()
 {
     m_fpsAccumulator += m_deltaTime;
     m_fpsFrameCount++;
-    if (m_fpsAccumulator >= 0.1 f)
+    if (m_fpsAccumulator >= 0.1f)
     {
         m_fps = static_cast<float>(m_fpsFrameCount) / m_fpsAccumulator;
         m_fpsAccumulator = 0.0f;
@@ -393,6 +369,7 @@ void Renderer::Render()
     if (result == VK_ERROR_OUT_OF_DATE_KHR)
     {
         m_swapChain.Recreate(&m_device, m_window, &m_surface, &m_commandBufferManager, m_resourceManager.GetAllocator());
+        RecreatePerImageSemaphores();
         m_descriptorManager.UpdateGBufferDescriptorSet();
         m_descriptorManager.UpdateCompositeDescriptorSet();
         m_descriptorManager.UpdateClusterDescriptorSet();
@@ -1023,6 +1000,7 @@ void Renderer::Render()
     {
         m_framebufferResized = false;
         m_swapChain.Recreate(&m_device, m_window, &m_surface, &m_commandBufferManager, m_resourceManager.GetAllocator());
+        RecreatePerImageSemaphores();
         m_descriptorManager.UpdateGBufferDescriptorSet();
         m_descriptorManager.UpdateCompositeDescriptorSet();
         m_descriptorManager.UpdateClusterDescriptorSet();
@@ -1070,10 +1048,9 @@ void Renderer::Render()
 
 void Renderer::Destroy()
 {
-    static bool alreadyDestroyed = false;
-    if (alreadyDestroyed)
+    if (m_destroyed)
         return;
-    alreadyDestroyed = true;
+    m_destroyed = true;
 
     m_gui.Shutdown();
 
@@ -1102,15 +1079,7 @@ void Renderer::Destroy()
 
     for (Object* obj : m_scene.GetObjects())
     {
-        if (obj)
-        {
-            obj->Destroy();
-            delete obj;
-        }
-    }
-    for (Light* light : m_scene.GetLights())
-    {
-        delete light;
+        if (obj) obj->Destroy();
     }
     m_scene.Destroy();
     m_mesh.Destroy();
@@ -1219,4 +1188,24 @@ void Renderer::CreatePerImageSemaphores()
             throw std::runtime_error("failed to create semaphore for swapchain image!");
         }
     }
+}
+
+void Renderer::RecreatePerImageSemaphores()
+{
+    VkDevice device = m_device.GetDevice();
+    for (auto& sem : m_renderFinishedSemaphores)
+    {
+        if (sem != VK_NULL_HANDLE)
+            vkDestroySemaphore(device, sem, nullptr);
+    }
+    uint32_t imageCount = static_cast<uint32_t>(m_swapChain.GetSwapChainImages().size());
+    m_renderFinishedSemaphores.resize(imageCount, VK_NULL_HANDLE);
+    VkSemaphoreCreateInfo semInfo{};
+    semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    for (uint32_t i = 0; i < imageCount; i++)
+    {
+        if (vkCreateSemaphore(device, &semInfo, nullptr, &m_renderFinishedSemaphores[i]) != VK_SUCCESS)
+            throw std::runtime_error("failed to recreate render finished semaphore!");
+    }
+    m_imagesInFlight.resize(imageCount, VK_NULL_HANDLE);
 }

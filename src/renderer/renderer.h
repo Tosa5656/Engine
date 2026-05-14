@@ -87,6 +87,7 @@ public:
 private:
     void CreateSyncObjects();
     void CreatePerImageSemaphores();
+    void RecreatePerImageSemaphores();
 
     GLFWwindow* m_window;
 
@@ -134,6 +135,7 @@ private:
     std::array<VkFence, MAX_FRAMES_IN_FLIGHT> m_inFlightFences;
     std::vector<VkFence> m_imagesInFlight;
     size_t m_currentFrame = 0;
+    bool m_destroyed = false;
     bool m_framebufferResized = false;
     float m_deltaTime = 0.0f;
     float m_fps = 0.0f;

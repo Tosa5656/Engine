@@ -35,7 +35,7 @@ void GUI::Init(VkDevice device, VkInstance instance, VkPhysicalDevice physicalDe
     initInfo.PipelineInfoMain.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
     VkFormat format = VK_FORMAT_B8G8R8A8_SRGB;
     initInfo.PipelineInfoMain.PipelineRenderingCreateInfo.pColorAttachmentFormats = &format;
-    initInfo.PipelineInfoMain.PipelineRenderingCreateInfo.depthAttachmentFormat = VK_FORMAT_D32_SFLOAT;
+    initInfo.PipelineInfoMain.PipelineRenderingCreateInfo.depthAttachmentFormat = VK_FORMAT_UNDEFINED;
     
     ImGui_ImplVulkan_Init(&initInfo);
 }
