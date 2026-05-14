@@ -395,7 +395,7 @@ void Renderer::Render()
     {
         if (obj && obj->IsActive())
         {
-            obj->UpdateUBO(&m_resourceManager);
+            obj->UpdateUBO(&m_resourceManager, m_scene.GetCamera()->GetPosition());
         }
     }
 

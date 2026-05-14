@@ -54,12 +54,19 @@ void Object::SetMaterial(Material* material)
     m_material = material;
 }
 
-void Object::UpdateUBO(ResourceManager* resourceManager)
+void Object::UpdateUBO(ResourceManager* resourceManager, glm::vec3 cameraPos)
 {
     if (m_material)
     {
         PerObjectUBO uboData = m_material->GetData();
         uboData.model = m_transform.GetTransformationMatrix();
+
+        if (uboData.parallaxMode == 1)
+        {
+            float dist = glm::distance(cameraPos, m_transform.GetPosition());
+            float t = glm::clamp((dist - 1.0f) / 11.0f, 0.0f, 1.0f);
+            uboData.parallaxIterations = static_cast<int>(glm::mix(8.0f, 32.0f, t));
+        }
 
         if (m_material->GetTextureArray())
         {

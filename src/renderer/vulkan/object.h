@@ -33,7 +33,7 @@ public:
 
     void SetDeviceAndAllocator(Device* device, CommandBufferManager* cmdManager, VmaAllocator allocator);
     void SetMaterial(Material* material);
-    void UpdateUBO(ResourceManager* resourceManager);
+    void UpdateUBO(ResourceManager* resourceManager, glm::vec3 cameraPos);
     void SetActive(bool active);
 
 private:
