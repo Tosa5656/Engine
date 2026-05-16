@@ -17,33 +17,22 @@ Renderer::~Renderer()
     Destroy();
 }
 
-void Renderer::Init(GLFWwindow *window, Input* input)
+void Renderer::Init(VulkanContext* context, Surface* surface, GLFWwindow* window, Input* input)
 {
+    m_context = context;
+    m_surface = surface;
     m_window = window;
     m_input = input;
 
-    VkApplicationInfo  appInfo{};
-    appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    appInfo.pApplicationName = "Engine Editor";
-    appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-    appInfo.pEngineName = "Engine";
-    appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-    appInfo.apiVersion = VK_API_VERSION_1_4;
-
-    m_instance.Create(appInfo);
-    m_instance.SetupDebugMessenger();
-    m_surface.Create(&m_instance, m_window);
-    m_device.PickPhysicalDevice(&m_instance, &m_surface);
-    m_device.Create(&m_instance, &m_surface);
-    m_resourceManager.Create(&m_device, &m_swapChain, &m_instance);
-    m_resourceManager.CreateAllocator();
-    m_swapChain.Create(&m_device, m_window, &m_surface, m_resourceManager.GetAllocator());
-    m_swapChain.CreateImageViews(&m_device);
-    m_descriptorManager.Init(&m_device, &m_swapChain, &m_resourceManager, 256);
+    m_resourceManager.Create(&m_context->device, &m_swapChain, &m_context->instance);
+    m_resourceManager.SetAllocator(m_context->allocator);
+    m_swapChain.Create(&m_context->device, m_window, m_surface, m_context->allocator);
+    m_swapChain.CreateImageViews(&m_context->device);
+    m_descriptorManager.Init(&m_context->device, &m_swapChain, &m_resourceManager, 256);
     m_descriptorManager.CreateDescriptorSetLayout();
-    m_pipelineManager.Create(&m_device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetDescriptorSetLayout(1), m_descriptorManager.GetTextureSetLayout(), m_descriptorManager.GetNormalMapSetLayout(), m_descriptorManager.GetHeightMapSetLayout(), m_descriptorManager.GetLightSetLayout());
-    m_pipelineManager.CreateLinePipeline(&m_device, &m_swapChain);
-    m_commandBufferManager.Init(m_device.GetDevice(), m_device.GetGraphicsQueueFamilyIndex(&m_surface));
+    m_pipelineManager.Create(&m_context->device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetDescriptorSetLayout(1), m_descriptorManager.GetTextureSetLayout(), m_descriptorManager.GetNormalMapSetLayout(), m_descriptorManager.GetHeightMapSetLayout(), m_descriptorManager.GetLightSetLayout());
+    m_pipelineManager.CreateLinePipeline(&m_context->device, &m_swapChain);
+    m_commandBufferManager.Init(m_context->device.GetDevice(), m_context->device.GetGraphicsQueueFamilyIndex(m_surface));
     m_resourceManager.CreateUniformBuffers();
     m_resourceManager.CreateObjectBuffer(128);
     m_resourceManager.CreateLightBuffers();
@@ -53,17 +42,17 @@ void Renderer::Init(GLFWwindow *window, Input* input)
         std::vector<MeshVertex> sphereVerts;
         std::vector<MeshIndex> sphereIndices;
         GenerateSphereMesh(sphereVerts, sphereIndices, 1.0f, 16, 12);
-        m_debugSphere.Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), sphereVerts, sphereIndices);
+        m_debugSphere.Init(&m_context->device, &m_commandBufferManager, m_resourceManager.GetAllocator(), sphereVerts, sphereIndices);
 
         std::vector<MeshVertex> coneVerts;
         std::vector<MeshIndex> coneIndices;
         GenerateConeMesh(coneVerts, coneIndices, 1.0f, 1.0f, 16);
-        m_debugCone.Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), coneVerts, coneIndices);
+        m_debugCone.Init(&m_context->device, &m_commandBufferManager, m_resourceManager.GetAllocator(), coneVerts, coneIndices);
 
         std::vector<MeshVertex> arrowVerts;
         std::vector<MeshIndex> arrowIndices;
         GenerateArrowMesh(arrowVerts, arrowIndices, 1.0f, 0.3f, 0.15f);
-        m_debugArrow.Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), arrowVerts, arrowIndices);
+        m_debugArrow.Init(&m_context->device, &m_commandBufferManager, m_resourceManager.GetAllocator(), arrowVerts, arrowIndices);
     }
 #endif
 
@@ -82,23 +71,23 @@ void Renderer::Init(GLFWwindow *window, Input* input)
     m_material5.SetMetallic(0.0f);
     m_material5.SetRoughness(0.6f);
 
-    m_material.Init(&m_device, m_resourceManager.GetAllocator());
-    m_material2.Init(&m_device, m_resourceManager.GetAllocator());
-    m_material3.Init(&m_device, m_resourceManager.GetAllocator());
-    m_material4.Init(&m_device, m_resourceManager.GetAllocator());
-    m_material5.Init(&m_device, m_resourceManager.GetAllocator());
+    m_material.Init(&m_context->device, m_resourceManager.GetAllocator());
+    m_material2.Init(&m_context->device, m_resourceManager.GetAllocator());
+    m_material3.Init(&m_context->device, m_resourceManager.GetAllocator());
+    m_material4.Init(&m_context->device, m_resourceManager.GetAllocator());
+    m_material5.Init(&m_context->device, m_resourceManager.GetAllocator());
 
-    m_textureAtlas.Init(&m_device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool(), 16);
+    m_textureAtlas.Init(&m_context->device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool(), 16);
     m_textureAtlas.AddTexture("textures/BrickWall23_1K_BaseColor.png");
     m_textureAtlas.Build();
 
-    m_singleTexture.Init(&m_device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool());
+    m_singleTexture.Init(&m_context->device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool());
     m_singleTexture.Load("textures/BrickWall23_1K_BaseColor.png");
 
-    m_normalMap.Init(&m_device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool());
+    m_normalMap.Init(&m_context->device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool());
     m_normalMap.Load("textures/BrickWall23_1K_Normal.png");
 
-    m_heightMap.Init(&m_device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool());
+    m_heightMap.Init(&m_context->device, m_resourceManager.GetAllocator(), m_commandBufferManager.GetCommandPool());
     m_heightMap.Load("textures/BrickWall23_1K_Height.png");
 
     m_material.SetTextureArray(&m_textureAtlas, 0);
@@ -113,32 +102,32 @@ void Renderer::Init(GLFWwindow *window, Input* input)
     m_scene.Init();
 
     Object* obj1 = new Object();
-    obj1->Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), &m_resourceManager, "models/cube.obj");
+    obj1->Init(&m_context->device, &m_commandBufferManager, m_resourceManager.GetAllocator(), &m_resourceManager, "models/cube.obj");
     obj1->SetMaterial(&m_material);
     obj1->GetTransform()->SetPosition(glm::vec3(0.0f, 0.0f, 0.0f));
 
     m_scene.AddObject(obj1);
 
     Object* obj2 = new Object();
-    obj2->Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), &m_resourceManager, "models/cube.obj");
+    obj2->Init(&m_context->device, &m_commandBufferManager, m_resourceManager.GetAllocator(), &m_resourceManager, "models/cube.obj");
     obj2->SetMaterial(&m_material2);
     obj2->GetTransform()->SetPosition(glm::vec3(3.0f, 0.0f, 0.0f));
     m_scene.AddObject(obj2);
 
     Object* obj3 = new Object();
-    obj3->Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), &m_resourceManager, "models/cube.obj");
+    obj3->Init(&m_context->device, &m_commandBufferManager, m_resourceManager.GetAllocator(), &m_resourceManager, "models/cube.obj");
     obj3->SetMaterial(&m_material3);
     obj3->GetTransform()->SetPosition(glm::vec3(-3.0f, 0.0f, 0.0f));
     m_scene.AddObject(obj3);
 
     Object* transparentObj = new Object();
-    transparentObj->Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), &m_resourceManager, "models/cube.obj");
+    transparentObj->Init(&m_context->device, &m_commandBufferManager, m_resourceManager.GetAllocator(), &m_resourceManager, "models/cube.obj");
     transparentObj->SetMaterial(&m_material4);
     transparentObj->GetTransform()->SetPosition(glm::vec3(0.0f, 4.0f, 0.0f));
     m_scene.AddObject(transparentObj);
 
     Object* cutoffObj = new Object();
-    cutoffObj->Init(&m_device, &m_commandBufferManager, m_resourceManager.GetAllocator(), &m_resourceManager, "models/cube.obj");
+    cutoffObj->Init(&m_context->device, &m_commandBufferManager, m_resourceManager.GetAllocator(), &m_resourceManager, "models/cube.obj");
     cutoffObj->SetMaterial(&m_material5);
     cutoffObj->GetTransform()->SetPosition(glm::vec3(1.5f, 2.0f, 0.0f));
     m_scene.AddObject(cutoffObj);
@@ -219,15 +208,15 @@ void Renderer::Init(GLFWwindow *window, Input* input)
     m_descriptorManager.CreateCompositeDescriptorSet();
     m_descriptorManager.CreateHdrDescriptorSet();
 
-    m_pipelineManager.CreateGBufferPipeline(&m_device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetDescriptorSetLayout(1), m_descriptorManager.GetTextureSetLayout(), m_descriptorManager.GetNormalMapSetLayout(), m_descriptorManager.GetHeightMapSetLayout());
-    m_pipelineManager.CreateLightingPipeline(&m_device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetGBufferSetLayout(), m_descriptorManager.GetLightSetLayout());
-    m_pipelineManager.CreateCompositePipeline(&m_device, &m_swapChain, m_descriptorManager.GetCompositeSetLayout());
-    m_pipelineManager.CreateTonemapPipeline(&m_device, &m_swapChain, m_descriptorManager.GetCompositeSetLayout(), m_descriptorManager.GetDescriptorSetLayout(0));
+    m_pipelineManager.CreateGBufferPipeline(&m_context->device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetDescriptorSetLayout(1), m_descriptorManager.GetTextureSetLayout(), m_descriptorManager.GetNormalMapSetLayout(), m_descriptorManager.GetHeightMapSetLayout());
+    m_pipelineManager.CreateLightingPipeline(&m_context->device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetGBufferSetLayout(), m_descriptorManager.GetLightSetLayout());
+    m_pipelineManager.CreateCompositePipeline(&m_context->device, &m_swapChain, m_descriptorManager.GetCompositeSetLayout());
+    m_pipelineManager.CreateTonemapPipeline(&m_context->device, &m_swapChain, m_descriptorManager.GetCompositeSetLayout(), m_descriptorManager.GetDescriptorSetLayout(0));
 
     m_resourceManager.CreateLuminanceBuffers();
     m_descriptorManager.CreateLuminanceSetLayout();
     m_descriptorManager.CreateLuminanceDescriptorSet();
-    m_pipelineManager.CreateLuminancePipeline(&m_device, m_descriptorManager.GetLuminanceSetLayout());
+    m_pipelineManager.CreateLuminancePipeline(&m_context->device, m_descriptorManager.GetLuminanceSetLayout());
 
     {
         VkExtent2D extent = m_swapChain.GetSwapChainExtent();
@@ -239,16 +228,16 @@ void Renderer::Init(GLFWwindow *window, Input* input)
     }
 
     m_descriptorManager.CreateClusterSetLayout();
-    m_pipelineManager.CreateClusterCullPipeline(&m_device, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetClusterSetLayout());
-    m_pipelineManager.CreateClusteredForwardPipeline(&m_device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetDescriptorSetLayout(1), m_descriptorManager.GetTextureSetLayout(), m_descriptorManager.GetNormalMapSetLayout(), m_descriptorManager.GetHeightMapSetLayout(), m_descriptorManager.GetClusterSetLayout());
+    m_pipelineManager.CreateClusterCullPipeline(&m_context->device, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetClusterSetLayout());
+    m_pipelineManager.CreateClusteredForwardPipeline(&m_context->device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetDescriptorSetLayout(1), m_descriptorManager.GetTextureSetLayout(), m_descriptorManager.GetNormalMapSetLayout(), m_descriptorManager.GetHeightMapSetLayout(), m_descriptorManager.GetClusterSetLayout());
     m_descriptorManager.CreateClusterDescriptorSet();
 
     CreateSyncObjects();
     m_imagesInFlight.resize(m_swapChain.GetSwapChainImages().size(), VK_NULL_HANDLE);
 
-    m_device.CreateTimestampQueryPool();
+    m_context->device.CreateTimestampQueryPool();
 
-    m_gui.Init(m_device.GetDevice(), m_instance.GetInstance(), m_device.GetPhysicalDevice(), m_device.GetGraphicsQueueFamilyIndex(&m_surface), m_device.GetGraphicsQueue(), m_window, VK_NULL_HANDLE, static_cast<uint32_t>(m_swapChain.GetSwapChainImages().size()));
+    m_gui.Init(m_context->device.GetDevice(), m_context->instance.GetInstance(), m_context->device.GetPhysicalDevice(), m_context->device.GetGraphicsQueueFamilyIndex(m_surface), m_context->device.GetGraphicsQueue(), m_window, VK_NULL_HANDLE, static_cast<uint32_t>(m_swapChain.GetSwapChainImages().size()));
 }
 
 void Renderer::Render()
@@ -305,7 +294,7 @@ void Renderer::Render()
         ImGui::End();
     }
 
-    vkWaitForFences(m_device.GetDevice(), 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
+    vkWaitForFences(m_context->device.GetDevice(), 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
 
     if (m_autoExposure && m_luminanceValid)
     {
@@ -360,7 +349,7 @@ void Renderer::Render()
 
     uint32_t imageIndex;
     VkResult result = vkAcquireNextImageKHR(
-        m_device.GetDevice(),
+        m_context->device.GetDevice(),
         m_swapChain.GetSwapChain(),
         UINT64_MAX,
         m_imageAvailableSemaphores[m_currentFrame],
@@ -369,7 +358,7 @@ void Renderer::Render()
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR)
     {
-        m_swapChain.Recreate(&m_device, m_window, &m_surface, &m_commandBufferManager, m_resourceManager.GetAllocator());
+        m_swapChain.Recreate(&m_context->device, m_window, m_surface, &m_commandBufferManager, m_resourceManager.GetAllocator());
         RecreatePerImageSemaphores();
         m_descriptorManager.UpdateGBufferDescriptorSet();
         m_descriptorManager.UpdateCompositeDescriptorSet();
@@ -385,7 +374,7 @@ void Renderer::Render()
 
     if (m_imagesInFlight[imageIndex] != VK_NULL_HANDLE)
     {
-        vkWaitForFences(m_device.GetDevice(), 1, &m_imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
+        vkWaitForFences(m_context->device.GetDevice(), 1, &m_imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
     }
     m_imagesInFlight[imageIndex] = m_inFlightFences[m_currentFrame];
 
@@ -419,8 +408,8 @@ void Renderer::Render()
     if (vkBeginCommandBuffer(cmd, &beginInfo) != VK_SUCCESS)
         throw std::runtime_error("failed to begin command buffer!");
 
-    vkCmdResetQueryPool(cmd, m_device.GetTimestampQueryPool(), 0, 2);
-    vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, m_device.GetTimestampQueryPool(), 0);
+    vkCmdResetQueryPool(cmd, m_context->device.GetTimestampQueryPool(), 0, 2);
+    vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, m_context->device.GetTimestampQueryPool(), 0);
 
     auto transitionImage = [&](VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout, VkImageAspectFlags aspectMask, VkAccessFlags srcAccess, VkAccessFlags dstAccess, VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage) {
         VkImageMemoryBarrier barrier{};
@@ -944,7 +933,7 @@ void Renderer::Render()
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
 
-    vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, m_device.GetTimestampQueryPool(), 1);
+    vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, m_context->device.GetTimestampQueryPool(), 1);
 
     if (vkEndCommandBuffer(cmd) != VK_SUCCESS)
         throw std::runtime_error("failed to record command buffer!");
@@ -965,18 +954,18 @@ void Renderer::Render()
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
-    if (vkResetFences(m_device.GetDevice(), 1, &m_inFlightFences[m_currentFrame]) != VK_SUCCESS)
+    if (vkResetFences(m_context->device.GetDevice(), 1, &m_inFlightFences[m_currentFrame]) != VK_SUCCESS)
         throw std::runtime_error("failed to reset fence!");
 
-    if (vkQueueSubmit(m_device.GetGraphicsQueue(), 1, &submitInfo, m_inFlightFences[m_currentFrame]) != VK_SUCCESS)
+    if (vkQueueSubmit(m_context->device.GetGraphicsQueue(), 1, &submitInfo, m_inFlightFences[m_currentFrame]) != VK_SUCCESS)
         throw std::runtime_error("failed to submit draw command buffer!");
 
-    vkWaitForFences(m_device.GetDevice(), 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
+    vkWaitForFences(m_context->device.GetDevice(), 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
 
     uint64_t timestamps[2];
     vkGetQueryPoolResults(
-        m_device.GetDevice(),
-        m_device.GetTimestampQueryPool(),
+        m_context->device.GetDevice(),
+        m_context->device.GetTimestampQueryPool(),
         0,
         2,
         sizeof(timestamps),
@@ -985,7 +974,7 @@ void Renderer::Render()
         VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
 
     uint64_t deltaTicks = timestamps[1] - timestamps[0];
-    m_deltaTime = static_cast<float>(deltaTicks * m_device.GetTimestampPeriod()) / 1e9f;
+    m_deltaTime = static_cast<float>(deltaTicks * m_context->device.GetTimestampPeriod()) / 1e9f;
 
     VkSwapchainKHR swapChain = m_swapChain.GetSwapChain();
 
@@ -997,12 +986,12 @@ void Renderer::Render()
     presentInfo.pSwapchains = &swapChain;
     presentInfo.pImageIndices = &imageIndex;
 
-    result = vkQueuePresentKHR(m_device.GetPresentQueue(), &presentInfo);
+    result = vkQueuePresentKHR(m_context->device.GetPresentQueue(), &presentInfo);
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_framebufferResized)
     {
         m_framebufferResized = false;
-        m_swapChain.Recreate(&m_device, m_window, &m_surface, &m_commandBufferManager, m_resourceManager.GetAllocator());
+        m_swapChain.Recreate(&m_context->device, m_window, m_surface, &m_commandBufferManager, m_resourceManager.GetAllocator());
         RecreatePerImageSemaphores();
         m_descriptorManager.UpdateGBufferDescriptorSet();
         m_descriptorManager.UpdateCompositeDescriptorSet();
@@ -1055,8 +1044,8 @@ void Renderer::Destroy()
         return;
     m_destroyed = true;
 
-    VkDevice device = m_device.GetDevice();
-    VkInstance instance = m_instance.GetInstance();
+    VkDevice device = m_context->device.GetDevice();
+    VkInstance instance = m_context->instance.GetInstance();
 
     if (device != VK_NULL_HANDLE)
         vkDeviceWaitIdle(device);
@@ -1103,10 +1092,10 @@ void Renderer::Destroy()
     m_resourceManager.Cleanup();
 
     m_descriptorManager.Cleanup();
-    m_pipelineManager.Shutdown(&m_device);
-    m_swapChain.Cleanup(&m_device);
+    m_pipelineManager.Shutdown(&m_context->device);
+    m_swapChain.Cleanup(&m_context->device);
 
-    m_device.DestroyTimestampQueryPool();
+    m_context->device.DestroyTimestampQueryPool();
 
     m_mesh.DestroyUploadFence();
 #ifndef NDEBUG
@@ -1115,21 +1104,7 @@ void Renderer::Destroy()
     m_debugArrow.DestroyUploadFence();
 #endif
 
-    VmaAllocator allocator = m_resourceManager.GetAllocator();
-    if (allocator != VK_NULL_HANDLE)
-        vmaDestroyAllocator(allocator);
 
-    if (device != VK_NULL_HANDLE)
-        vkDestroyDevice(device, nullptr);
-
-    if (instance != VK_NULL_HANDLE)
-    {
-        if (m_instance.IsExtensionValidationEnabled())
-            m_instance.DestroyDebugUtilsMessengerEXT(instance, m_instance.GetDebugMessenger(), nullptr);
-
-        m_surface.Cleanup(&m_instance);
-        vkDestroyInstance(instance, nullptr);
-    }
 }
 
 void Renderer::SetFramebufferResized(bool resized)
@@ -1139,7 +1114,7 @@ void Renderer::SetFramebufferResized(bool resized)
 
 VkDevice Renderer::GetDevice()
 {
-    return m_device.GetDevice();
+    return m_context->device.GetDevice();
 }
 
 float Renderer::GetDeltaTime()
@@ -1167,8 +1142,8 @@ void Renderer::CreateSyncObjects()
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
     {
-        if (vkCreateSemaphore(m_device.GetDevice(), &semInfo, nullptr, &m_imageAvailableSemaphores[i]) != VK_SUCCESS ||
-            vkCreateFence(m_device.GetDevice(), &fenceInfo, nullptr, &m_inFlightFences[i]) != VK_SUCCESS)
+        if (vkCreateSemaphore(m_context->device.GetDevice(), &semInfo, nullptr, &m_imageAvailableSemaphores[i]) != VK_SUCCESS ||
+            vkCreateFence(m_context->device.GetDevice(), &fenceInfo, nullptr, &m_inFlightFences[i]) != VK_SUCCESS)
         {
             throw std::runtime_error("failed to create synchronization objects!");
         }
@@ -1176,7 +1151,7 @@ void Renderer::CreateSyncObjects()
 
     for (size_t i = 0; i < imageCount; i++)
     {
-        if (vkCreateSemaphore(m_device.GetDevice(), &semInfo, nullptr, &m_renderFinishedSemaphores[i]) != VK_SUCCESS)
+        if (vkCreateSemaphore(m_context->device.GetDevice(), &semInfo, nullptr, &m_renderFinishedSemaphores[i]) != VK_SUCCESS)
         {
             throw std::runtime_error("failed to create synchronization objects!");
         }
@@ -1192,8 +1167,8 @@ void Renderer::CreatePerImageSemaphores()
 
     for (uint32_t i = 0; i < imageCount; i++)
     {
-        if (vkCreateSemaphore(m_device.GetDevice(), &semInfo, nullptr, &m_imageAvailableSemaphores[i]) != VK_SUCCESS ||
-            vkCreateSemaphore(m_device.GetDevice(), &semInfo, nullptr, &m_renderFinishedSemaphores[i]) != VK_SUCCESS)
+        if (vkCreateSemaphore(m_context->device.GetDevice(), &semInfo, nullptr, &m_imageAvailableSemaphores[i]) != VK_SUCCESS ||
+            vkCreateSemaphore(m_context->device.GetDevice(), &semInfo, nullptr, &m_renderFinishedSemaphores[i]) != VK_SUCCESS)
         {
             throw std::runtime_error("failed to create semaphore for swapchain image!");
         }
@@ -1202,7 +1177,7 @@ void Renderer::CreatePerImageSemaphores()
 
 void Renderer::RecreatePerImageSemaphores()
 {
-    VkDevice device = m_device.GetDevice();
+    VkDevice device = m_context->device.GetDevice();
     for (auto& sem : m_renderFinishedSemaphores)
     {
         if (sem != VK_NULL_HANDLE)

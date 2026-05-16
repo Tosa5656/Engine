@@ -22,6 +22,7 @@ public:
     void UpdateStats(float deltaTime, uint64_t gpuMemory, uint64_t gpuMemoryBudget, uint64_t cpuMemory);
 
 private:
+    ImGuiContext* m_context = nullptr;
     VkDevice m_device;
     VkInstance m_instance;
     VkPhysicalDevice m_physicalDevice;

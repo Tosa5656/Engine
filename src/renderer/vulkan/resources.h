@@ -79,6 +79,7 @@ public:
     void CreateObjectBuffer(uint32_t maxObjects);
     void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkBuffer& buffer, VmaAllocation& allocation);
     void CreateAllocator();
+    void SetAllocator(VmaAllocator allocator) { m_allocator = allocator; }
 
     void UpdatePerFrameUBO(uint32_t currentImage, Camera& camera);
     void UpdatePerObjectUBO(uint32_t slot, const PerObjectUBO& data);

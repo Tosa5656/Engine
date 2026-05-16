@@ -176,6 +176,8 @@ uint32_t Device::GetPresentQueueFamilyIndex(Surface* surface)
 
 void Device::CreateTimestampQueryPool()
 {
+    if (m_timestampQueryPool != VK_NULL_HANDLE) return;
+
     VkQueryPoolCreateInfo queryPoolInfo{};
     queryPoolInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
     queryPoolInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;

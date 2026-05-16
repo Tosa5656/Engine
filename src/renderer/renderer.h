@@ -19,8 +19,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <vk_mem_alloc.h>
 
-#include <renderer/vulkan/instance.h>
-#include <renderer/vulkan/device.h>
+#include <renderer/vulkan/vulkan_context.h>
 #include <renderer/vulkan/surface.h>
 #include <renderer/vulkan/swapchain.h>
 #include <renderer/vulkan/commandbuffer.h>
@@ -38,28 +37,29 @@
 #include <utils/input/input.h>
 #include <gui-debug/imgui/imgui.h>
 
-inline bool is_glfw_initialized = false;
+inline int glfw_refcount = 0;
 
 static void InitGLFW()
 {
-    if (is_glfw_initialized)
-        return;
-    else
+    if (glfw_refcount == 0)
     {
         if (glfwInit())
-            is_glfw_initialized = true;
+            glfw_refcount = 1;
+    }
+    else
+    {
+        glfw_refcount++;
     }
 }
 
 static void DestroyGLFW()
 {
-    if (is_glfw_initialized)
+    if (glfw_refcount > 0)
     {
-        glfwTerminate();
-        is_glfw_initialized = false;
+        glfw_refcount--;
+        if (glfw_refcount == 0)
+            glfwTerminate();
     }
-    else
-        return;
 }
 
 struct FrameData
@@ -75,7 +75,7 @@ public:
     Renderer();
     ~Renderer();
 
-    void Init(GLFWwindow* window, Input* input);
+    void Init(VulkanContext* context, Surface* surface, GLFWwindow* window, Input* input);
     void Render();
     void Destroy();
 
@@ -90,10 +90,8 @@ private:
     void RecreatePerImageSemaphores();
 
     GLFWwindow* m_window;
-
-    Instance m_instance;
-    Device m_device;
-    Surface m_surface;
+    VulkanContext* m_context = nullptr;
+    Surface* m_surface = nullptr;
     SwapChain m_swapChain;
     CommandBufferManager m_commandBufferManager;
     PipelineManager m_pipelineManager;

@@ -13,6 +13,7 @@ set(PROJECT_SOURCES src/main.cpp
                     src/renderer/renderer.cpp
                     src/gui-debug/imgui/imgui.cpp
                     src/vma/vma_impl.cpp
+                    src/renderer/vulkan/vulkan_context.cpp
                     src/renderer/vulkan/instance.cpp
                     src/renderer/vulkan/device.cpp
                     src/renderer/vulkan/swapchain.cpp

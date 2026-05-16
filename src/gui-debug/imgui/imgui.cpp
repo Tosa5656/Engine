@@ -12,7 +12,8 @@ void GUI::Init(VkDevice device, VkInstance instance, VkPhysicalDevice physicalDe
     m_renderPass = renderPass;
 
     IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
+    m_context = ImGui::CreateContext();
+    ImGui::SetCurrentContext(m_context);
 
     ImGuiIO& io = ImGui::GetIO();
     io.IniFilename = nullptr;
@@ -42,6 +43,7 @@ void GUI::Init(VkDevice device, VkInstance instance, VkPhysicalDevice physicalDe
 
 void GUI::NewFrame()
 {
+    ImGui::SetCurrentContext(m_context);
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
@@ -49,6 +51,7 @@ void GUI::NewFrame()
 
 void GUI::DebugConsole()
 {
+    ImGui::SetCurrentContext(m_context);
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
@@ -60,6 +63,7 @@ void GUI::DebugConsole()
 
 void GUI::DebugInfo(int fps)
 {
+    ImGui::SetCurrentContext(m_context);
     ImGui::Begin("Debug Info");
 
     ImGui::Text("FPS: %d", fps);
@@ -76,30 +80,34 @@ void GUI::DebugInfo(int fps)
 
 void GUI::UpdateStats(float deltaTime, uint64_t gpuMemory, uint64_t gpuMemoryBudget, uint64_t cpuMemory)
 {
+    ImGui::SetCurrentContext(m_context);
     m_deltaTime = deltaTime;
     m_frameTime = deltaTime * 1000.0f;
     m_fps = deltaTime > 0.0f ? 1.0f / deltaTime : 0.0f;
     m_gpuMemory = gpuMemory;
     m_gpuMemoryBudget = gpuMemoryBudget;
     m_cpuMemory = cpuMemory;
-    m_drawCalls = ImGui::GetDrawData() ? ImGui::GetDrawData()->CmdListsCount : 0;
 }
 
 void GUI::Render(VkCommandBuffer commandBuffer)
 {
+    ImGui::SetCurrentContext(m_context);
     ImGui::Render();
+    m_drawCalls = ImGui::GetDrawData() ? ImGui::GetDrawData()->CmdListsCount : 0;
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
 }
 
 void GUI::Shutdown()
 {
+    ImGui::SetCurrentContext(m_context);
     ImGui_ImplVulkan_Shutdown();
     ImGui_ImplGlfw_Shutdown();
-    ImGui::DestroyContext();
+    ImGui::DestroyContext(m_context);
 }
 
 void GUI::SetShowCursor(bool show)
 {
+    ImGui::SetCurrentContext(m_context);
     ImGuiIO& io = ImGui::GetIO();
     if (!show)
     {

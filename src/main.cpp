@@ -1,36 +1,18 @@
-#include <iostream>
 #include <window/window.h>
 
-Window* window_ptr;
-bool space_state = false;
-
-void Awake()
-{
-
-}
-
-void Start()
-{
-
-}
-
-void Update()
-{
-    if (window_ptr->GetInput()->IsDown(KeyCode::Space))
-    {
-        window_ptr->GetInput()->SetCursorCaptured(space_state);
-        window_ptr->GetRenderer()->SetShowCursor(!space_state);
-        space_state = !space_state;
-    }
-}
+void Awake() {}
+void Start() {}
+void Update() {}
 
 int main()
 {
-    Window window = Window("Singularity Engine", 1280, 720, Awake, Start, Update);
-    window_ptr = &window;
+    Window window1("Singularity Engine - Main", 1280, 720, Awake, Start, Update);
+    Window window2("Singularity Engine - Secondary", 640, 480, Awake, Start, Update, &window1);
 
-    while (window.ShouldActive())
+    while (window1.ShouldActive() || window2.ShouldActive())
     {
-        window.Update();
+        if (window1.ShouldActive()) window1.Update();
+        if (window2.ShouldActive()) window2.Update();
     }
+
 }
