@@ -76,6 +76,7 @@ public:
     void Init(Device* device, CommandBufferManager* cmdManager, VmaAllocator allocator, const std::vector<MeshVertex>& vertices, const std::vector<MeshIndex>& indices);
     void Draw(VkCommandBuffer commandBuffer);
     void Destroy();
+    void DestroyUploadFence();
 
     VkBuffer GetVertexBuffer() const { return m_vertexBuffer; }
     VmaAllocation GetVertexBufferAllocation() const { return m_vertexBufferAllocation; }

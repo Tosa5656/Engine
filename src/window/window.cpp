@@ -22,8 +22,16 @@ Window::Window(std::string title, int width, int height, std::function<void()> a
 
 Window::~Window()
 {
-    Close();
     m_renderer.Destroy();
+
+    if (m_window != nullptr && !m_windowClosed)
+    {
+        m_windowClosed = true;
+        glfwDestroyWindow(m_window);
+        m_window = nullptr;
+    }
+
+    DestroyGLFW();
 }
 
 void Window::Init()

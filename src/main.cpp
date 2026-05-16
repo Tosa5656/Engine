@@ -33,6 +33,4 @@ int main()
     {
         window.Update();
     }
-
-    DestroyGLFW();
 }

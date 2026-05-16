@@ -1055,13 +1055,13 @@ void Renderer::Destroy()
         return;
     m_destroyed = true;
 
-    m_gui.Shutdown();
-
     VkDevice device = m_device.GetDevice();
     VkInstance instance = m_instance.GetInstance();
 
     if (device != VK_NULL_HANDLE)
         vkDeviceWaitIdle(device);
+
+    m_gui.Shutdown();
 
     for (auto& sem : m_imageAvailableSemaphores)
     {
@@ -1107,6 +1107,13 @@ void Renderer::Destroy()
     m_swapChain.Cleanup(&m_device);
 
     m_device.DestroyTimestampQueryPool();
+
+    m_mesh.DestroyUploadFence();
+#ifndef NDEBUG
+    m_debugSphere.DestroyUploadFence();
+    m_debugCone.DestroyUploadFence();
+    m_debugArrow.DestroyUploadFence();
+#endif
 
     VmaAllocator allocator = m_resourceManager.GetAllocator();
     if (allocator != VK_NULL_HANDLE)

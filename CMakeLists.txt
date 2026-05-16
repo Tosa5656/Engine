@@ -29,6 +29,7 @@ set(PROJECT_SOURCES src/main.cpp
                     src/renderer/vulkan/material.cpp
                     src/renderer/vulkan/texture.cpp
                     src/renderer/vulkan/texturearray.cpp
+                    src/renderer/vulkan/computepipeline.cpp
                     src/renderer/vulkan/stb_image_impl.cpp
                     src/utils/input/input.cpp
                     src/renderer/vulkan/light/light.cpp

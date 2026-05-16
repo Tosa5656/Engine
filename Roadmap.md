@@ -31,15 +31,65 @@
 - [x] Tonemapping (ACES filmic)
 - [x] Exposure control (auto-exposure, manual)
 
-### Shadows
-- [ ] Shadow map per light type
-- [ ] Cascaded Shadow Maps (CSM) - 3-4 cascades
-- [ ] Cascade splitting (linear, exponential)
-- [ ] PCF (Percentage Closer Filtering) - 3x3, 5x5 kernel
-- [ ] Poisson disk sampling for soft shadows
-- [ ] Shadow cache for static lights
-- [ ] Shadow map atlas (pack multiple maps)
-- [ ] Bias / normal offset to reduce acne
+### Shadows — Directional
+
+#### Shadow mapping foundation
+- [ ] Shadow pass: render scene depth from light POV into dedicated depth attachment
+- [ ] Shadow sampler: sample depth attachment in fragment shader, compare against fragment depth in light space
+- [ ] Light space matrix: compute orthographic projection + view matrix from directional light direction
+- [ ] Frustum fit: tightly fit orthographic frustum to camera view frustum (stable cs)
+- [ ] Shadow acne mitigation: depth bias (slope-scaled, constant)
+- [ ] Normal offset bias: shift shadow-receiving fragment along normal to reduce acne
+- [ ] Peter Panning fix: bias balancing to avoid detached shadows
+- [ ] Shadow map resolution: configurable per-light (512–4096)
+- [ ] Percentage-Close Filtering (PCF): 2×2, 3×3 bilinear hardware filter
+- [ ] Manual PCF: 3×3, 5×5 kernel with depth comparison loop in shader
+- [ ] Poisson disk PCF: pre-rotated Poisson samples for smooth penumbra
+
+#### Cascade shadow maps (CSM)
+- [ ] CSM — 3 cascade split scheme: near / mid / far
+- [ ] Cascade partition: uniform split (linear)
+- [ ] Cascade partition: logarithmic split (exponential)
+- [ ] Cascade partition: practical split (pssm = lerp(log, uniform))
+- [ ] Cascade selection: vertex shader computes cascade index from view-space depth
+- [ ] Cascade blend: blend between adjacent cascade edges to hide transition seams
+- [ ] Cascade blend width: configurable overlap percentage per cascade boundary
+- [ ] Stable cascade: round cascade projection to texel-sized increments to prevent shimmer
+- [ ] Cascade resolution: per-cascade independent resolution (higher near, lower far)
+- [ ] Cascade debug visualization: color-coded cascade regions in ImGui overlay
+
+#### PCF & soft shadows
+- [ ] Rotated grid PCF: dither samples per pixel to reduce banding
+- [ ] Stratified Poisson: distribute samples in disk, random rotation per pixel
+- [ ] Percentage-Closer Soft Shadows (PCSS): blocker search → penumbra estimation → PCF
+- [ ] PCSS blocker step: average blocker depth in search region
+- [ ] PCSS penumbra: penumbra width ∝ (receiverDepth − blockerAvg) / blockerAvg
+- [ ] PCSS filter: PCF with dynamic radius from penumbra estimate
+- [ ] Contact Hardening: shadow hardness ∝ distance to contact (near contact = hard, far = soft)
+
+### Shadows — Other light types
+- [ ] Spot light shadow: perspective projection, 1D depth array, PCF
+- [ ] Point light shadow: omnidirectional (cube map / dual-paraboloid), 6-face depth
+- [ ] Point light PCF: sample cubemap faces with offset, hardware bilinear across faces
+- [ ] Percentage-Closer Soft Shadows for spot / point: blocker search in light space
+
+### Shadow map optimization
+- [ ] Shadow map atlas: pack multiple shadow maps (dir, spot, point) into single texture array
+- [ ] Atlas layout: static grid → dynamic rectangle packing (guillotine, shelf)
+- [ ] Atlas tile invalidation: mark dirty tiles when light moves, re-render only moved lights
+- [ ] Static shadow caching: render static geometry once, reuse while neither light nor occluder moves
+- [ ] Static/dynamic split: cache static depth, re-render only dynamic objects each frame
+- [ ] Frustum culling for shadow casters: skip objects outside light frustum in shadow pass
+- [ ] Shadow LOD: reduce shadow map resolution for distant / small lights
+- [ ] Shadow distance culling: lights beyond max shadow distance skip shadow pass entirely
+
+### Shadow quality & debugging
+- [ ] Shadow filtering quality presets (low=2×2 PCF, medium=4×4, high=8×8+Poisson, ultra=PCSS)
+- [ ] Shadow fade-out: smoothly fade shadows at max cascade / max distance boundary
+- [ ] Bias sliders in ImGui: constant bias, slope bias, normal offset per cascade
+- [ ] Shadow map preview: render selected shadow map depth into ImGui window
+- [ ] Cascade frustum wireframe: debug draw frustum of each cascade in 3D viewport
+- [ ] Shadow caster highlight: highlight objects rendered into shadow map
 
 ### Post-processing
 - [ ] Post-processing pass framework

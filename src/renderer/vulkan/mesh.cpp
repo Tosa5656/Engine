@@ -4,7 +4,11 @@
 #include <utils/parsers/obj.h>
 
 Mesh::Mesh() {};
-Mesh::~Mesh() { Destroy(); }
+Mesh::~Mesh()
+{
+    Destroy();
+    DestroyUploadFence();
+}
 
 void Mesh::SetDeviceAndAllocator(Device* device, CommandBufferManager* cmdManager, VmaAllocator allocator)
 {
@@ -112,6 +116,15 @@ void Mesh::Destroy()
         vmaDestroyBuffer(m_allocator, m_indexBuffer, m_indexBufferAllocation);
         m_indexBuffer = VK_NULL_HANDLE;
         m_indexBufferAllocation = VK_NULL_HANDLE;
+    }
+}
+
+void Mesh::DestroyUploadFence()
+{
+    if (m_device && m_uploadFence != VK_NULL_HANDLE)
+    {
+        vkDestroyFence(m_device->GetDevice(), m_uploadFence, nullptr);
+        m_uploadFence = VK_NULL_HANDLE;
     }
 }
 
