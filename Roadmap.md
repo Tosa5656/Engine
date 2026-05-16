@@ -34,17 +34,23 @@
 ### Shadows — Directional
 
 #### Shadow mapping foundation
-- [ ] Shadow pass: render scene depth from light POV into dedicated depth attachment
-- [ ] Shadow sampler: sample depth attachment in fragment shader, compare against fragment depth in light space
-- [ ] Light space matrix: compute orthographic projection + view matrix from directional light direction
-- [ ] Frustum fit: tightly fit orthographic frustum to camera view frustum (stable cs)
-- [ ] Shadow acne mitigation: depth bias (slope-scaled, constant)
+- [x] Shadow pass: render scene depth from light POV into dedicated depth attachment
+- [x] Shadow sampler: sample depth attachment in fragment shader, compare against fragment depth in light space
+- [x] Light space matrix: compute orthographic projection + view matrix from directional light direction
+- [x] Frustum fit: tightly fit orthographic frustum to camera view frustum (stable cs)
+- [x] Shadow acne mitigation: depth bias (slope-scaled, constant)
 - [ ] Normal offset bias: shift shadow-receiving fragment along normal to reduce acne
 - [ ] Peter Panning fix: bias balancing to avoid detached shadows
-- [ ] Shadow map resolution: configurable per-light (512–4096)
+- [x] Shadow map resolution: configurable per-light (512–4096)
 - [ ] Percentage-Close Filtering (PCF): 2×2, 3×3 bilinear hardware filter
-- [ ] Manual PCF: 3×3, 5×5 kernel with depth comparison loop in shader
+- [x] Manual PCF: 3×3, 5×5 kernel with depth comparison loop in shader
 - [ ] Poisson disk PCF: pre-rotated Poisson samples for smooth penumbra
+
+### Light controls (ImGui)
+- [x] Directional light yaw/pitch control
+- [x] Light intensity control
+- [x] Shadow bias sliders (constant, slope)
+- [x] Light direction display
 
 #### Cascade shadow maps (CSM)
 - [ ] CSM — 3 cascade split scheme: near / mid / far

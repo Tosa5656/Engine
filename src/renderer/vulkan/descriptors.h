@@ -72,6 +72,11 @@ public:
     VkDescriptorSetLayout GetLuminanceSetLayout() const { return m_luminanceSetLayout; }
     VkDescriptorSet GetLuminanceDescriptorSet() const { return m_luminanceDescriptorSet; }
 
+    void CreateShadowSetLayout();
+    void CreateShadowDescriptorSet(VkImageView shadowMapView, VkSampler shadowSampler);
+    VkDescriptorSetLayout GetShadowSetLayout() const { return m_shadowSetLayout; }
+    VkDescriptorSet GetShadowDescriptorSet() const { return m_shadowDescriptorSet; }
+
 private:
     Device* m_device = nullptr;
     SwapChain* m_swapChain = nullptr;
@@ -107,4 +112,7 @@ private:
 
     VkDescriptorSetLayout m_luminanceSetLayout = VK_NULL_HANDLE;
     VkDescriptorSet m_luminanceDescriptorSet = VK_NULL_HANDLE;
+
+    VkDescriptorSetLayout m_shadowSetLayout = VK_NULL_HANDLE;
+    VkDescriptorSet m_shadowDescriptorSet = VK_NULL_HANDLE;
 };

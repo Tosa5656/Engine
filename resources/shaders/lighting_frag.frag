@@ -9,7 +9,9 @@ layout(set = 0, binding = 0) uniform PerFrameUBO
     vec3 cameraPos;
     float nearPlane;
     float farPlane;
-    vec2 padding;
+    float exposure;
+    float pad;
+    mat4 lightSpaceMatrix;
 } perFrame;
 
 layout(set = 1, binding = 0) uniform sampler2D gPosition;
@@ -33,10 +35,36 @@ layout(set = 2, binding = 0) readonly buffer LightSSBO
     int lightCount;
 } lightData;
 
+layout(set = 3, binding = 0) uniform sampler2D shadowMap;
+
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec4 outEmissive;
 
-vec3 ComputeDirectionalLight(Light light, vec3 normal, vec3 viewDir, vec3 albedo, float metallic)
+float ShadowPCF(vec3 lightSpacePos, float cosTheta)
+{
+    vec3 proj = lightSpacePos * 0.5 + 0.5;
+    if (proj.x < 0.0 || proj.x > 1.0 || proj.y < 0.0 || proj.y > 1.0 || proj.z > 1.0)
+        return 0.0;
+
+    float bias = 0.005 * tan(acos(cosTheta));
+    bias = clamp(bias, 0.0, 0.01);
+
+    ivec2 texSize = textureSize(shadowMap, 0);
+    vec2 texelSize = 1.0 / vec2(texSize);
+
+    float shadow = 0.0;
+    for (int x = -1; x <= 1; x++)
+    {
+        for (int y = -1; y <= 1; y++)
+        {
+            float depth = texture(shadowMap, proj.xy + vec2(x, y) * texelSize).r;
+            shadow += (proj.z - bias > depth) ? 1.0 : 0.0;
+        }
+    }
+    return shadow / 9.0;
+}
+
+vec3 ComputeDirectionalLight(Light light, vec3 normal, vec3 viewDir, vec3 albedo, float metallic, vec3 worldPos)
 {
     vec3 lightDir = normalize(light.direction.xyz);
     float intensity = light.direction.w;
@@ -49,7 +77,14 @@ vec3 ComputeDirectionalLight(Light light, vec3 normal, vec3 viewDir, vec3 albedo
     float spec = pow(max(dot(normal, halfDir), 0.0), 32.0);
     vec3 specular = lightColor * spec * metallic;
 
-    return lightColor * diffuse + specular;
+    float shadow = 0.0;
+    if (light.color.w > 0.5)
+    {
+        vec4 lightSpacePos = perFrame.lightSpaceMatrix * vec4(worldPos, 1.0);
+        shadow = ShadowPCF(lightSpacePos.xyz, max(dot(normal, lightDir), 0.0));
+    }
+
+    return (1.0 - shadow) * (lightColor * diffuse + specular);
 }
 
 vec3 ComputePointLight(Light light, vec3 fragPos, vec3 normal, vec3 viewDir, vec3 albedo, float metallic)
@@ -134,7 +169,7 @@ void main()
         int type = int(light.position.w);
 
         if (type == 0)
-            lighting += ComputeDirectionalLight(light, normal, viewDir, albedo, metallic);
+            lighting += ComputeDirectionalLight(light, normal, viewDir, albedo, metallic, worldPos);
         else if (type == 1)
             lighting += ComputePointLight(light, worldPos, normal, viewDir, albedo, metallic);
         else if (type == 2)

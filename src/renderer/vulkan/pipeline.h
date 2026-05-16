@@ -23,7 +23,7 @@ public:
     void Create(Device* device, SwapChain* swapChain, VkDescriptorSetLayout perFrameSetLayout, VkDescriptorSetLayout perObjectSetLayout, VkDescriptorSetLayout textureSetLayout, VkDescriptorSetLayout normalMapSetLayout, VkDescriptorSetLayout heightMapSetLayout, VkDescriptorSetLayout lightSetLayout);
     void CreateLinePipeline(Device* device, SwapChain* swapChain);
     void CreateGBufferPipeline(Device* device, SwapChain* swapChain, VkDescriptorSetLayout perFrameSetLayout, VkDescriptorSetLayout perObjectSetLayout, VkDescriptorSetLayout textureSetLayout, VkDescriptorSetLayout normalMapSetLayout, VkDescriptorSetLayout heightMapSetLayout);
-    void CreateLightingPipeline(Device* device, SwapChain* swapChain, VkDescriptorSetLayout perFrameSetLayout, VkDescriptorSetLayout gbufferSetLayout, VkDescriptorSetLayout lightSetLayout);
+    void CreateLightingPipeline(Device* device, SwapChain* swapChain, VkDescriptorSetLayout perFrameSetLayout, VkDescriptorSetLayout gbufferSetLayout, VkDescriptorSetLayout lightSetLayout, VkDescriptorSetLayout shadowSetLayout = VK_NULL_HANDLE);
     void CreateCompositePipeline(Device* device, SwapChain* swapChain, VkDescriptorSetLayout compositeSetLayout);
     void CreateClusterCullPipeline(Device* device, VkDescriptorSetLayout perFrameSetLayout, VkDescriptorSetLayout clusterSetLayout);
     void CreateClusteredForwardPipeline(Device* device, SwapChain* swapChain, VkDescriptorSetLayout perFrameSetLayout, VkDescriptorSetLayout perObjectSetLayout, VkDescriptorSetLayout textureSetLayout, VkDescriptorSetLayout normalMapSetLayout, VkDescriptorSetLayout heightMapSetLayout, VkDescriptorSetLayout clusterSetLayout);
@@ -48,6 +48,10 @@ public:
     void CreateTonemapPipeline(Device* device, SwapChain* swapChain, VkDescriptorSetLayout hdrSetLayout, VkDescriptorSetLayout perFrameSetLayout);
     VkPipeline GetTonemapPipeline() const { return m_tonemapPipeline; }
     VkPipelineLayout GetTonemapPipelineLayout() const { return m_tonemapPipelineLayout; }
+
+    void CreateShadowPipeline(Device* device, VkDescriptorSetLayout perFrameSetLayout, VkDescriptorSetLayout perObjectSetLayout, uint32_t shadowMapSize);
+    VkPipeline GetShadowPipeline() const { return m_shadowPipeline; }
+    VkPipelineLayout GetShadowPipelineLayout() const { return m_shadowPipelineLayout; }
 
 private:
     std::vector<uint32_t> ReadFile(const std::string& filename);
@@ -74,6 +78,9 @@ private:
 
     VkPipelineLayout m_luminancePipelineLayout = VK_NULL_HANDLE;
     VkPipeline m_luminancePipeline = VK_NULL_HANDLE;
+
+    VkPipelineLayout m_shadowPipelineLayout = VK_NULL_HANDLE;
+    VkPipeline m_shadowPipeline = VK_NULL_HANDLE;
 
 public:
     VkPipeline GetLuminancePipeline() const { return m_luminancePipeline; }

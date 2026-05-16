@@ -132,6 +132,11 @@ void Renderer::Init(VulkanContext* context, Surface* surface, GLFWwindow* window
     cutoffObj->GetTransform()->SetPosition(glm::vec3(1.5f, 2.0f, 0.0f));
     m_scene.AddObject(cutoffObj);
 
+    Object* plane = new Object();
+    plane->Init(&m_context->device, &m_commandBufferManager, m_resourceManager.GetAllocator(), &m_resourceManager, "models/plane.obj");
+    plane->GetTransform()->SetPosition(glm::vec3(0.0f, -2.0f, 0.0f));
+    m_scene.AddObject(plane);
+
     m_scene.GetCamera()->SetPosition(glm::vec3(8.0f, 5.0f, 8.0f));
     m_scene.GetCamera()->SetAspectRatio(m_swapChain.GetSwapChainExtent().width / (float)m_swapChain.GetSwapChainExtent().height);
 
@@ -139,6 +144,7 @@ void Renderer::Init(VulkanContext* context, Surface* surface, GLFWwindow* window
     sun->SetDirection(glm::vec3(1.0f, -1.0f, 0.5f));
     sun->SetColor(glm::vec3(1.0f, 0.95f, 0.8f));
     sun->SetIntensity(10.5f);
+    sun->SetCastShadows(true);
     m_scene.AddLight(sun);
 
     m_descriptorManager.CreateDescriptorPool();
@@ -204,12 +210,70 @@ void Renderer::Init(VulkanContext* context, Surface* surface, GLFWwindow* window
         m_material2.SetHeightMapDescriptorSet(m_descriptorManager.CreateHeightMapDescriptorSet(m_material2.GetHeightMap()));
     }
 
+    {
+        VkImageCreateInfo imgInfo{};
+        imgInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imgInfo.imageType = VK_IMAGE_TYPE_2D;
+        imgInfo.extent.width = m_shadowMapSize;
+        imgInfo.extent.height = m_shadowMapSize;
+        imgInfo.extent.depth = 1;
+        imgInfo.mipLevels = 1;
+        imgInfo.arrayLayers = 1;
+        imgInfo.format = VK_FORMAT_D32_SFLOAT;
+        imgInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        imgInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        imgInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+
+        VmaAllocationCreateInfo allocInfo{};
+        allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+        if (vmaCreateImage(m_resourceManager.GetAllocator(), &imgInfo, &allocInfo, &m_shadowMapImage, &m_shadowMapAllocation, nullptr) != VK_SUCCESS)
+            throw std::runtime_error("failed to create shadow map image!");
+    }
+
+    {
+        VkImageViewCreateInfo viewInfo{};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = m_shadowMapImage;
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = VK_FORMAT_D32_SFLOAT;
+        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+        viewInfo.subresourceRange.baseMipLevel = 0;
+        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.baseArrayLayer = 0;
+        viewInfo.subresourceRange.layerCount = 1;
+
+        if (vkCreateImageView(m_context->device.GetDevice(), &viewInfo, nullptr, &m_shadowMapView) != VK_SUCCESS)
+            throw std::runtime_error("failed to create shadow map image view!");
+    }
+
+    {
+        VkSamplerCreateInfo samplerInfo{};
+        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        samplerInfo.magFilter = VK_FILTER_LINEAR;
+        samplerInfo.minFilter = VK_FILTER_LINEAR;
+        samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+        samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+        samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+        samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+        samplerInfo.compareEnable = VK_FALSE;
+        samplerInfo.compareOp = VK_COMPARE_OP_LESS;
+        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+
+        if (vkCreateSampler(m_context->device.GetDevice(), &samplerInfo, nullptr, &m_shadowSampler) != VK_SUCCESS)
+            throw std::runtime_error("failed to create shadow sampler!");
+    }
+
+    m_descriptorManager.CreateShadowSetLayout();
+    m_descriptorManager.CreateShadowDescriptorSet(m_shadowMapView, m_shadowSampler);
+
     m_descriptorManager.CreateGBufferDescriptorSet();
     m_descriptorManager.CreateCompositeDescriptorSet();
     m_descriptorManager.CreateHdrDescriptorSet();
 
     m_pipelineManager.CreateGBufferPipeline(&m_context->device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetDescriptorSetLayout(1), m_descriptorManager.GetTextureSetLayout(), m_descriptorManager.GetNormalMapSetLayout(), m_descriptorManager.GetHeightMapSetLayout());
-    m_pipelineManager.CreateLightingPipeline(&m_context->device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetGBufferSetLayout(), m_descriptorManager.GetLightSetLayout());
+    m_pipelineManager.CreateLightingPipeline(&m_context->device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetGBufferSetLayout(), m_descriptorManager.GetLightSetLayout(), m_descriptorManager.GetShadowSetLayout());
     m_pipelineManager.CreateCompositePipeline(&m_context->device, &m_swapChain, m_descriptorManager.GetCompositeSetLayout());
     m_pipelineManager.CreateTonemapPipeline(&m_context->device, &m_swapChain, m_descriptorManager.GetCompositeSetLayout(), m_descriptorManager.GetDescriptorSetLayout(0));
 
@@ -231,6 +295,8 @@ void Renderer::Init(VulkanContext* context, Surface* surface, GLFWwindow* window
     m_pipelineManager.CreateClusterCullPipeline(&m_context->device, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetClusterSetLayout());
     m_pipelineManager.CreateClusteredForwardPipeline(&m_context->device, &m_swapChain, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetDescriptorSetLayout(1), m_descriptorManager.GetTextureSetLayout(), m_descriptorManager.GetNormalMapSetLayout(), m_descriptorManager.GetHeightMapSetLayout(), m_descriptorManager.GetClusterSetLayout());
     m_descriptorManager.CreateClusterDescriptorSet();
+
+    m_pipelineManager.CreateShadowPipeline(&m_context->device, m_descriptorManager.GetDescriptorSetLayout(0), m_descriptorManager.GetDescriptorSetLayout(1), m_shadowMapSize);
 
     CreateSyncObjects();
     m_imagesInFlight.resize(m_swapChain.GetSwapChainImages().size(), VK_NULL_HANDLE);
@@ -291,6 +357,24 @@ void Renderer::Render()
             ImGui::SliderFloat("Max Exposure", &m_maxExposure, 1.0f, 20.0f, "%.1f", ImGuiSliderFlags_AlwaysClamp);
             ImGui::SliderFloat("Adapt Speed", &m_adaptSpeed, 0.1f, 10.0f, "%.1f", ImGuiSliderFlags_AlwaysClamp);
         }
+        ImGui::End();
+    }
+
+    {
+        ImGui::Begin("Shadow Controls");
+        ImGui::SliderFloat("Depth Bias", &m_shadowBiasConstant, 0.0f, 0.05f, "%.5f", ImGuiSliderFlags_AlwaysClamp);
+        ImGui::SliderFloat("Slope Bias", &m_shadowBiasSlope, 0.0f, 5.0f, "%.1f", ImGuiSliderFlags_AlwaysClamp);
+        ImGui::SliderInt("PCF Kernel", &m_shadowPcfKernel, 1, 3);
+        ImGui::Text("Kernel: %dx%d (1=hardware, 3=manual 3x3)", m_shadowPcfKernel, m_shadowPcfKernel);
+        ImGui::End();
+    }
+
+    {
+        ImGui::Begin("Light Control");
+        ImGui::SliderFloat("Yaw", &m_lightYaw, -180.0f, 180.0f, "%.1f", ImGuiSliderFlags_AlwaysClamp);
+        ImGui::SliderFloat("Pitch", &m_lightPitch, -90.0f, 90.0f, "%.1f", ImGuiSliderFlags_AlwaysClamp);
+        ImGui::SliderFloat("Intensity", &m_lightIntensity, 0.0f, 50.0f, "%.1f", ImGuiSliderFlags_AlwaysClamp);
+        ImGui::Text("Direction: (%.2f, %.2f, %.2f)", m_lightDir.x, m_lightDir.y, m_lightDir.z);
         ImGui::End();
     }
 
@@ -378,8 +462,6 @@ void Renderer::Render()
     }
     m_imagesInFlight[imageIndex] = m_inFlightFences[m_currentFrame];
 
-    m_resourceManager.UpdatePerFrameUBO(imageIndex, *m_scene.GetCamera());
-
     for (Object* obj : m_scene.GetObjects())
     {
         if (obj && obj->IsActive())
@@ -388,18 +470,68 @@ void Renderer::Render()
         }
     }
 
+    glm::mat4 lightSpaceMatrix(1.0f);
     {
         auto& lights = m_scene.GetLights();
         if (!lights.empty() && lights[0] && lights[0]->GetType() == LightType::Directional)
         {
-            static float angle = 0.0f;
-            angle += m_deltaTime * 0.5f;
             DirectionalLight* sun = static_cast<DirectionalLight*>(lights[0]);
-            glm::quat rot = glm::angleAxis(angle, glm::vec3(0.0f, 1.0f, 0.0f));
-            sun->SetDirection(rot * glm::vec3(1.0f, -1.0f, 0.5f));
+            float yawRad = glm::radians(m_lightYaw);
+            float pitchRad = glm::radians(m_lightPitch);
+            m_lightDir = glm::normalize(glm::vec3(
+                cos(yawRad) * cos(pitchRad),
+                sin(pitchRad),
+                sin(yawRad) * cos(pitchRad)
+            ));
+            sun->SetDirection(m_lightDir);
+            sun->SetIntensity(m_lightIntensity);
+
+            glm::vec3 lightDir = glm::normalize(sun->GetDirection());
+            glm::vec3 up = glm::abs(glm::dot(lightDir, glm::vec3(0.0f, 1.0f, 0.0f))) > 0.99f
+                ? glm::vec3(1.0f, 0.0f, 0.0f) : glm::vec3(0.0f, 1.0f, 0.0f);
+
+            Camera* cam = m_scene.GetCamera();
+            auto corners = cam->GetFrustumCorners();
+
+            glm::vec3 center(0.0f);
+            for (auto& c : corners)
+                center += c;
+            center /= 8.0f;
+
+            float radius = glm::distance(corners[0], center);
+            glm::vec3 lightPos = center - lightDir * radius * 2.0f;
+            glm::mat4 lightView = glm::lookAt(lightPos, center, up);
+
+            glm::vec3 sceneMin(1e30f);
+            glm::vec3 sceneMax(-1e30f);
+            for (auto& c : corners)
+            {
+                glm::vec4 ls = lightView * glm::vec4(c, 1.0f);
+                sceneMin = glm::min(sceneMin, glm::vec3(ls));
+                sceneMax = glm::max(sceneMax, glm::vec3(ls));
+            }
+            for (Object* obj : m_scene.GetObjects())
+            {
+                if (obj && obj->IsActive())
+                {
+                    glm::vec3 pos = obj->GetTransform()->GetPosition();
+                    glm::vec4 lp = lightView * glm::vec4(pos, 1.0f);
+                    sceneMin = glm::min(sceneMin, glm::vec3(lp) - 5.0f);
+                    sceneMax = glm::max(sceneMax, glm::vec3(lp) + 5.0f);
+                }
+            }
+
+            float zNear = std::max(0.1f, -sceneMax.z);
+            float zFar = zNear + std::max(1.0f, -sceneMin.z - zNear);
+
+            glm::mat4 lightProj = glm::ortho(sceneMin.x, sceneMax.x, sceneMin.y, sceneMax.y, zNear, zFar);
+            lightProj[1][1] *= -1;
+            lightSpaceMatrix = lightProj * lightView;
         }
     }
     m_scene.Update(m_deltaTime, &m_resourceManager);
+
+    m_resourceManager.UpdatePerFrameUBO(imageIndex, *m_scene.GetCamera(), lightSpaceMatrix);
 
     VkCommandBuffer cmd = m_commandBufferManager.GetCommandBuffer(m_currentFrame);
     vkResetCommandBuffer(cmd, 0);
@@ -441,6 +573,65 @@ void Renderer::Render()
     VkRect2D scissor{};
     scissor.offset = {0, 0};
     scissor.extent = m_swapChain.GetSwapChainExtent();
+
+    {
+        transitionImage(m_shadowMapImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+            VK_IMAGE_ASPECT_DEPTH_BIT, 0, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT);
+
+        VkRenderingAttachmentInfo shadowDepth{};
+        shadowDepth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+        shadowDepth.imageView = m_shadowMapView;
+        shadowDepth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+        shadowDepth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        shadowDepth.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        shadowDepth.clearValue.depthStencil = {1.0f, 0};
+
+        VkRenderingInfo shadowRendering{};
+        shadowRendering.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+        shadowRendering.renderArea = {{0, 0}, {m_shadowMapSize, m_shadowMapSize}};
+        shadowRendering.layerCount = 1;
+        shadowRendering.colorAttachmentCount = 0;
+        shadowRendering.pColorAttachments = nullptr;
+        shadowRendering.pDepthAttachment = &shadowDepth;
+
+        vkCmdBeginRendering(cmd, &shadowRendering);
+
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetShadowPipeline());
+
+        VkViewport shadowVP{};
+        shadowVP.x = 0.0f;
+        shadowVP.y = 0.0f;
+        shadowVP.width = (float)m_shadowMapSize;
+        shadowVP.height = (float)m_shadowMapSize;
+        shadowVP.minDepth = 0.0f;
+        shadowVP.maxDepth = 1.0f;
+        vkCmdSetViewport(cmd, 0, 1, &shadowVP);
+
+        VkRect2D shadowScissor{};
+        shadowScissor.offset = {0, 0};
+        shadowScissor.extent = {m_shadowMapSize, m_shadowMapSize};
+        vkCmdSetScissor(cmd, 0, 1, &shadowScissor);
+
+        vkCmdSetDepthBias(cmd, m_shadowBiasConstant, 0.0f, m_shadowBiasSlope);
+
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetShadowPipelineLayout(), 0, 1, &m_descriptorManager.GetDescriptorSets()[imageIndex], 0, nullptr);
+
+        for (Object* obj : m_scene.GetObjects())
+        {
+            if (!obj || !obj->IsActive() || obj->IsTransparent()) continue;
+
+            uint32_t dynamicOffset = obj->GetUBOSlot() * m_resourceManager.GetObjectUBOStride();
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetShadowPipelineLayout(), 1, 1, m_descriptorManager.GetPerObjectDescriptorSets().data(), 1, &dynamicOffset);
+            obj->Draw(cmd, m_descriptorManager.GetPerObjectDescriptorSets()[0], m_resourceManager.GetObjectUBOStride());
+        }
+
+        vkCmdEndRendering(cmd);
+
+        transitionImage(m_shadowMapImage, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+            VK_IMAGE_ASPECT_DEPTH_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+            VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+    }
 
     {
         struct { VkImage img; VkFormat fmt; } gbufferRTs[4] = {
@@ -586,6 +777,10 @@ void Renderer::Render()
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetLightingPipelineLayout(), 1, 1, &gbufferDS, 0, nullptr);
         VkDescriptorSet lightDS = m_descriptorManager.GetLightDescriptorSet();
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetLightingPipelineLayout(), 2, 1, &lightDS, 0, nullptr);
+
+        VkDescriptorSet shadowDS = m_descriptorManager.GetShadowDescriptorSet();
+        if (shadowDS != VK_NULL_HANDLE)
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetLightingPipelineLayout(), 3, 1, &shadowDS, 0, nullptr);
 
         vkCmdDraw(cmd, 3, 1, 0, 0);
 
@@ -1104,7 +1299,22 @@ void Renderer::Destroy()
     m_debugArrow.DestroyUploadFence();
 #endif
 
-
+    if (m_shadowSampler != VK_NULL_HANDLE)
+    {
+        vkDestroySampler(device, m_shadowSampler, nullptr);
+        m_shadowSampler = VK_NULL_HANDLE;
+    }
+    if (m_shadowMapView != VK_NULL_HANDLE)
+    {
+        vkDestroyImageView(device, m_shadowMapView, nullptr);
+        m_shadowMapView = VK_NULL_HANDLE;
+    }
+    if (m_shadowMapImage != VK_NULL_HANDLE && m_shadowMapAllocation != VK_NULL_HANDLE)
+    {
+        vmaDestroyImage(m_resourceManager.GetAllocator(), m_shadowMapImage, m_shadowMapAllocation);
+        m_shadowMapImage = VK_NULL_HANDLE;
+        m_shadowMapAllocation = VK_NULL_HANDLE;
+    }
 }
 
 void Renderer::SetFramebufferResized(bool resized)

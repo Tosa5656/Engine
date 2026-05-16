@@ -115,7 +115,7 @@ void ResourceManager::CreateObjectBuffer(uint32_t maxObjects)
     CreateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, m_objectBuffer, m_objectAllocation);
 }
 
-void ResourceManager::UpdatePerFrameUBO(uint32_t currentImage, Camera& camera)
+void ResourceManager::UpdatePerFrameUBO(uint32_t currentImage, Camera& camera, const glm::mat4& lightSpaceMatrix)
 {
     PerFrameUBO ubo{};
     ubo.view = camera.GetViewMatrix();
@@ -124,6 +124,7 @@ void ResourceManager::UpdatePerFrameUBO(uint32_t currentImage, Camera& camera)
     ubo.nearPlane = camera.GetNearPlane();
     ubo.farPlane = camera.GetFarPlane();
     ubo.exposure = m_exposure;
+    ubo.lightSpaceMatrix = lightSpaceMatrix;
 
     void* data;
     vmaMapMemory(m_allocator, m_perFrameAllocations[currentImage], &data);

@@ -24,6 +24,7 @@ struct PerFrameUBO
     alignas(4) float farPlane;
     alignas(4) float exposure;
     alignas(4) float pad;
+    alignas(16) glm::mat4 lightSpaceMatrix;
 };
 
 struct LightUBO
@@ -81,7 +82,7 @@ public:
     void CreateAllocator();
     void SetAllocator(VmaAllocator allocator) { m_allocator = allocator; }
 
-    void UpdatePerFrameUBO(uint32_t currentImage, Camera& camera);
+    void UpdatePerFrameUBO(uint32_t currentImage, Camera& camera, const glm::mat4& lightSpaceMatrix = glm::mat4(1.0f));
     void UpdatePerObjectUBO(uint32_t slot, const PerObjectUBO& data);
     void SetExposure(float exposure) { m_exposure = exposure; }
     float GetExposure() const { return m_exposure; }

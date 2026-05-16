@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 #include <glm/glm.hpp>
@@ -33,6 +35,7 @@ public:
 
     const glm::mat4& GetViewMatrix();
     const glm::mat4& GetProjectionMatrix();
+    std::vector<glm::vec3> GetFrustumCorners() const;
 
     void MarkDirty();
 

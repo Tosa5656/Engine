@@ -139,4 +139,18 @@ private:
     float m_fps = 0.0f;
     float m_fpsAccumulator = 0.0f;
     int m_fpsFrameCount = 0;
+
+    VkImage m_shadowMapImage = VK_NULL_HANDLE;
+    VmaAllocation m_shadowMapAllocation = VK_NULL_HANDLE;
+    VkImageView m_shadowMapView = VK_NULL_HANDLE;
+    VkSampler m_shadowSampler = VK_NULL_HANDLE;
+    uint32_t m_shadowMapSize = 2048;
+    float m_shadowBiasConstant = 0.005f;
+    float m_shadowBiasSlope = 1.5f;
+    int m_shadowPcfKernel = 1;
+
+    float m_lightYaw = 0.0f;
+    float m_lightPitch = -35.0f;
+    float m_lightIntensity = 10.5f;
+    glm::vec3 m_lightDir = glm::vec3(0.577f, -0.577f, 0.577f);
 };

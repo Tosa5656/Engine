@@ -429,7 +429,7 @@ void PipelineManager::CreateGBufferPipeline(Device* device, SwapChain* swapChain
     vkDestroyShaderModule(device->GetDevice(), vertShaderModule, nullptr);
 }
 
-void PipelineManager::CreateLightingPipeline(Device* device, SwapChain* swapChain, VkDescriptorSetLayout perFrameSetLayout, VkDescriptorSetLayout gbufferSetLayout, VkDescriptorSetLayout lightSetLayout)
+void PipelineManager::CreateLightingPipeline(Device* device, SwapChain* swapChain, VkDescriptorSetLayout perFrameSetLayout, VkDescriptorSetLayout gbufferSetLayout, VkDescriptorSetLayout lightSetLayout, VkDescriptorSetLayout shadowSetLayout)
 {
     auto vertShaderCode = ReadFile("shaders/lighting_vert.spv");
     auto fragShaderCode = ReadFile("shaders/lighting_frag.spv");
@@ -501,11 +501,12 @@ void PipelineManager::CreateLightingPipeline(Device* device, SwapChain* swapChai
     colorBlending.attachmentCount = 2;
     colorBlending.pAttachments = colorBlendAttachments;
 
-    VkDescriptorSetLayout setLayouts[] = { perFrameSetLayout, gbufferSetLayout, lightSetLayout };
+    VkDescriptorSetLayout setLayouts[4] = { perFrameSetLayout, gbufferSetLayout, lightSetLayout, shadowSetLayout };
+    uint32_t setLayoutCount = shadowSetLayout != VK_NULL_HANDLE ? 4 : 3;
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 3;
+    pipelineLayoutInfo.setLayoutCount = setLayoutCount;
     pipelineLayoutInfo.pSetLayouts = setLayouts;
 
     if (vkCreatePipelineLayout(device->GetDevice(), &pipelineLayoutInfo, nullptr, &m_lightingPipelineLayout) != VK_SUCCESS)
@@ -974,6 +975,119 @@ void PipelineManager::CreateLuminancePipeline(Device* device, VkDescriptorSetLay
     vkDestroyShaderModule(device->GetDevice(), compShaderModule, nullptr);
 }
 
+void PipelineManager::CreateShadowPipeline(Device* device, VkDescriptorSetLayout perFrameSetLayout, VkDescriptorSetLayout perObjectSetLayout, uint32_t shadowMapSize)
+{
+    auto vertShaderCode = ReadFile("shaders/shadow_vert.spv");
+    auto fragShaderCode = ReadFile("shaders/shadow_frag.spv");
+
+    VkShaderModule vertShaderModule = CreateShaderModule(vertShaderCode, device);
+    VkShaderModule fragShaderModule = CreateShaderModule(fragShaderCode, device);
+
+    VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+    vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    vertShaderStageInfo.module = vertShaderModule;
+    vertShaderStageInfo.pName = "main";
+
+    VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+    fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    fragShaderStageInfo.module = fragShaderModule;
+    fragShaderStageInfo.pName = "main";
+
+    VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
+
+    auto bindingDescription = MeshVertex::getBindingDescription();
+    auto posAttribute = MeshVertex::getAttributeDescriptions()[0];
+
+    VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+    vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vertexInputInfo.vertexBindingDescriptionCount = 1;
+    vertexInputInfo.vertexAttributeDescriptionCount = 1;
+    vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+    vertexInputInfo.pVertexAttributeDescriptions = &posAttribute;
+
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+    inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+    VkDynamicState dynamicStates[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_DEPTH_BIAS };
+    VkPipelineDynamicStateCreateInfo dynamicState{};
+    dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamicState.dynamicStateCount = 3;
+    dynamicState.pDynamicStates = dynamicStates;
+
+    VkPipelineViewportStateCreateInfo viewportState{};
+    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewportState.viewportCount = 1;
+    viewportState.scissorCount = 1;
+
+    VkPipelineRasterizationStateCreateInfo rasterizer{};
+    rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rasterizer.depthClampEnable = VK_FALSE;
+    rasterizer.rasterizerDiscardEnable = VK_FALSE;
+    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterizer.lineWidth = 1.0f;
+    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+    rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    rasterizer.depthBiasEnable = VK_TRUE;
+
+    VkPipelineMultisampleStateCreateInfo multisampling{};
+    multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisampling.sampleShadingEnable = VK_FALSE;
+    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    VkPipelineDepthStencilStateCreateInfo depthStencil{};
+    depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depthStencil.depthTestEnable = VK_TRUE;
+    depthStencil.depthWriteEnable = VK_TRUE;
+    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+    depthStencil.depthBoundsTestEnable = VK_FALSE;
+    depthStencil.stencilTestEnable = VK_FALSE;
+
+    VkDescriptorSetLayout setLayouts[] = { perFrameSetLayout, perObjectSetLayout };
+
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutInfo.setLayoutCount = 2;
+    pipelineLayoutInfo.pSetLayouts = setLayouts;
+
+    if (vkCreatePipelineLayout(device->GetDevice(), &pipelineLayoutInfo, nullptr, &m_shadowPipelineLayout) != VK_SUCCESS)
+        throw std::runtime_error("failed to create shadow pipeline layout!");
+
+    VkFormat depthFormat = VK_FORMAT_D32_SFLOAT;
+
+    VkPipelineRenderingCreateInfo renderingInfo{};
+    renderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+    renderingInfo.colorAttachmentCount = 0;
+    renderingInfo.pColorAttachmentFormats = nullptr;
+    renderingInfo.depthAttachmentFormat = depthFormat;
+
+    VkGraphicsPipelineCreateInfo pipelineInfo{};
+    pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipelineInfo.pNext = &renderingInfo;
+    pipelineInfo.stageCount = 2;
+    pipelineInfo.pStages = shaderStages;
+    pipelineInfo.pVertexInputState = &vertexInputInfo;
+    pipelineInfo.pInputAssemblyState = &inputAssembly;
+    pipelineInfo.pViewportState = &viewportState;
+    pipelineInfo.pRasterizationState = &rasterizer;
+    pipelineInfo.pMultisampleState = &multisampling;
+    pipelineInfo.pDepthStencilState = &depthStencil;
+    pipelineInfo.pDynamicState = &dynamicState;
+    pipelineInfo.layout = m_shadowPipelineLayout;
+    pipelineInfo.renderPass = VK_NULL_HANDLE;
+    pipelineInfo.subpass = 0;
+    pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+    pipelineInfo.basePipelineIndex = -1;
+
+    if (vkCreateGraphicsPipelines(device->GetDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_shadowPipeline) != VK_SUCCESS)
+        throw std::runtime_error("failed to create shadow pipeline!");
+
+    vkDestroyShaderModule(device->GetDevice(), fragShaderModule, nullptr);
+    vkDestroyShaderModule(device->GetDevice(), vertShaderModule, nullptr);
+}
+
 void PipelineManager::Shutdown(Device* device)
 {
     if (m_compositePipeline != VK_NULL_HANDLE)
@@ -1060,6 +1174,16 @@ void PipelineManager::Shutdown(Device* device)
     {
         vkDestroyPipelineLayout(device->GetDevice(), m_luminancePipelineLayout, nullptr);
         m_luminancePipelineLayout = VK_NULL_HANDLE;
+    }
+    if (m_shadowPipeline != VK_NULL_HANDLE)
+    {
+        vkDestroyPipeline(device->GetDevice(), m_shadowPipeline, nullptr);
+        m_shadowPipeline = VK_NULL_HANDLE;
+    }
+    if (m_shadowPipelineLayout != VK_NULL_HANDLE)
+    {
+        vkDestroyPipelineLayout(device->GetDevice(), m_shadowPipelineLayout, nullptr);
+        m_shadowPipelineLayout = VK_NULL_HANDLE;
     }
 }
 

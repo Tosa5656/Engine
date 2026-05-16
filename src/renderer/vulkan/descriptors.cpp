@@ -104,11 +104,16 @@ void DescriptorsManager::Cleanup()
         vkDestroyDescriptorSetLayout(device, m_luminanceSetLayout, nullptr);
         m_luminanceSetLayout = VK_NULL_HANDLE;
     }
+    if (m_shadowSetLayout != VK_NULL_HANDLE)
+    {
+        vkDestroyDescriptorSetLayout(device, m_shadowSetLayout, nullptr);
+        m_shadowSetLayout = VK_NULL_HANDLE;
+    }
 }
 
 void DescriptorsManager::CreateDescriptorPool()
 {
-    std::vector<VkDescriptorPoolSize> poolSizes(13);
+    std::vector<VkDescriptorPoolSize> poolSizes(14);
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSizes[0].descriptorCount = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size());
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
@@ -137,6 +142,9 @@ void DescriptorsManager::CreateDescriptorPool()
 
     poolSizes[12].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     poolSizes[12].descriptorCount = 2;
+
+    poolSizes[13].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[13].descriptorCount = 1;
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1031,6 +1039,50 @@ void DescriptorsManager::UpdateLuminanceDescriptorSet()
     writes[1].pBufferInfo = &luminanceInfo;
 
     vkUpdateDescriptorSets(m_device->GetDevice(), static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+}
+
+void DescriptorsManager::CreateShadowSetLayout()
+{
+    VkDescriptorSetLayoutBinding shadowBinding{};
+    shadowBinding.binding = 0;
+    shadowBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    shadowBinding.descriptorCount = 1;
+    shadowBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo layoutInfo{};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = 1;
+    layoutInfo.pBindings = &shadowBinding;
+
+    if (vkCreateDescriptorSetLayout(m_device->GetDevice(), &layoutInfo, nullptr, &m_shadowSetLayout) != VK_SUCCESS)
+        throw std::runtime_error("failed to create shadow descriptor set layout!");
+}
+
+void DescriptorsManager::CreateShadowDescriptorSet(VkImageView shadowMapView, VkSampler shadowSampler)
+{
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = m_descriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = &m_shadowSetLayout;
+
+    if (vkAllocateDescriptorSets(m_device->GetDevice(), &allocInfo, &m_shadowDescriptorSet) != VK_SUCCESS)
+        throw std::runtime_error("failed to allocate shadow descriptor set!");
+
+    VkDescriptorImageInfo imageInfo{};
+    imageInfo.sampler = shadowSampler;
+    imageInfo.imageView = shadowMapView;
+    imageInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+
+    VkWriteDescriptorSet write{};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstSet = m_shadowDescriptorSet;
+    write.dstBinding = 0;
+    write.descriptorCount = 1;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write.pImageInfo = &imageInfo;
+
+    vkUpdateDescriptorSets(m_device->GetDevice(), 1, &write, 0, nullptr);
 }
 
 void DescriptorsManager::UpdateCompositeDescriptorSet()

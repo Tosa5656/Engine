@@ -103,3 +103,30 @@ void Camera::UpdateProjectionMatrix()
     m_projectionMatrix = glm::perspective(glm::radians(m_fov), m_aspect, m_near, m_far);
     m_projectionMatrix[1][1] *= -1;
 }
+
+std::vector<glm::vec3> Camera::GetFrustumCorners() const
+{
+    float halfVSide = m_far * tanf(glm::radians(m_fov) * 0.5f);
+    float halfHSide = halfVSide * m_aspect;
+    glm::vec3 front = glm::normalize(m_target - m_transform.GetPosition());
+    glm::vec3 right = glm::normalize(glm::cross(front, m_up));
+    glm::vec3 up = glm::normalize(glm::cross(right, front));
+
+    glm::vec3 fc = m_transform.GetPosition() + front * m_far;
+
+    std::vector<glm::vec3> corners(8);
+    corners[0] = fc + (up * halfVSide) - (right * halfHSide);
+    corners[1] = fc + (up * halfVSide) + (right * halfHSide);
+    corners[2] = fc - (up * halfVSide) - (right * halfHSide);
+    corners[3] = fc - (up * halfVSide) + (right * halfHSide);
+
+    glm::vec3 nc = m_transform.GetPosition() + front * m_near;
+    float nearHalfVSide = m_near * tanf(glm::radians(m_fov) * 0.5f);
+    float nearHalfHSide = nearHalfVSide * m_aspect;
+    corners[4] = nc + (up * nearHalfVSide) - (right * nearHalfHSide);
+    corners[5] = nc + (up * nearHalfVSide) + (right * nearHalfHSide);
+    corners[6] = nc - (up * nearHalfVSide) - (right * nearHalfHSide);
+    corners[7] = nc - (up * nearHalfVSide) + (right * nearHalfHSide);
+
+    return corners;
+}
