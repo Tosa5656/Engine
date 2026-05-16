@@ -1047,10 +1047,17 @@ void PipelineManager::CreateShadowPipeline(Device* device, VkDescriptorSetLayout
 
     VkDescriptorSetLayout setLayouts[] = { perFrameSetLayout, perObjectSetLayout };
 
+    VkPushConstantRange pushConst{};
+    pushConst.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    pushConst.offset = 0;
+    pushConst.size = sizeof(int);
+
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 2;
     pipelineLayoutInfo.pSetLayouts = setLayouts;
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+    pipelineLayoutInfo.pPushConstantRanges = &pushConst;
 
     if (vkCreatePipelineLayout(device->GetDevice(), &pipelineLayoutInfo, nullptr, &m_shadowPipelineLayout) != VK_SUCCESS)
         throw std::runtime_error("failed to create shadow pipeline layout!");

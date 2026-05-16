@@ -37,14 +37,14 @@
 - [x] Shadow pass: render scene depth from light POV into dedicated depth attachment
 - [x] Shadow sampler: sample depth attachment in fragment shader, compare against fragment depth in light space
 - [x] Light space matrix: compute orthographic projection + view matrix from directional light direction
-- [x] Frustum fit: tightly fit orthographic frustum to camera view frustum (stable cs)
+- [x] Frustum fit: tightly fit orthographic frustum to camera view frustum + scene bounds
 - [x] Shadow acne mitigation: depth bias (slope-scaled, constant)
-- [ ] Normal offset bias: shift shadow-receiving fragment along normal to reduce acne
-- [ ] Peter Panning fix: bias balancing to avoid detached shadows
+- [x] Normal offset bias: shift shadow-receiving fragment along normal to reduce acne
+- [x] Peter Panning fix: bias balancing to avoid detached shadows
 - [x] Shadow map resolution: configurable per-light (512–4096)
-- [ ] Percentage-Close Filtering (PCF): 2×2, 3×3 bilinear hardware filter
-- [x] Manual PCF: 3×3, 5×5 kernel with depth comparison loop in shader
-- [ ] Poisson disk PCF: pre-rotated Poisson samples for smooth penumbra
+- [x] Percentage-Close Filtering (PCF): 2×2 bilinear hardware filter (sampler2DShadow)
+- [x] Manual PCF: 3×3 kernel with depth comparison loop in shader
+- [x] Poisson disk PCF: 16-sample pre-rotated Poisson disk with per-pixel random rotation
 
 ### Light controls (ImGui)
 - [x] Directional light yaw/pitch control
@@ -53,20 +53,20 @@
 - [x] Light direction display
 
 #### Cascade shadow maps (CSM)
-- [ ] CSM — 3 cascade split scheme: near / mid / far
-- [ ] Cascade partition: uniform split (linear)
-- [ ] Cascade partition: logarithmic split (exponential)
-- [ ] Cascade partition: practical split (pssm = lerp(log, uniform))
-- [ ] Cascade selection: vertex shader computes cascade index from view-space depth
-- [ ] Cascade blend: blend between adjacent cascade edges to hide transition seams
-- [ ] Cascade blend width: configurable overlap percentage per cascade boundary
-- [ ] Stable cascade: round cascade projection to texel-sized increments to prevent shimmer
-- [ ] Cascade resolution: per-cascade independent resolution (higher near, lower far)
-- [ ] Cascade debug visualization: color-coded cascade regions in ImGui overlay
+- [x] CSM — 3 cascade split scheme: near / mid / far
+- [x] Cascade partition: uniform split (linear)
+- [x] Cascade partition: logarithmic split (exponential)
+- [x] Cascade partition: practical split (pssm = lerp(log, uniform))
+- [x] Cascade selection: vertex shader computes cascade index from view-space depth
+- [x] Cascade blend: blend between adjacent cascade edges to hide transition seams
+- [x] Cascade blend width: configurable overlap percentage per cascade boundary
+- [x] Stable cascade: round cascade projection to texel-sized increments to prevent shimmer
+- [x] Cascade resolution: per-cascade independent resolution (higher near, lower far)
+- [x] Cascade debug visualization: color-coded cascade regions in ImGui overlay
 
 #### PCF & soft shadows
 - [ ] Rotated grid PCF: dither samples per pixel to reduce banding
-- [ ] Stratified Poisson: distribute samples in disk, random rotation per pixel
+- [x] Stratified Poisson: distribute samples in disk, random rotation per pixel
 - [ ] Percentage-Closer Soft Shadows (PCSS): blocker search → penumbra estimation → PCF
 - [ ] PCSS blocker step: average blocker depth in search region
 - [ ] PCSS penumbra: penumbra width ∝ (receiverDepth − blockerAvg) / blockerAvg

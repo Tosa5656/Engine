@@ -218,7 +218,7 @@ void Renderer::Init(VulkanContext* context, Surface* surface, GLFWwindow* window
         imgInfo.extent.height = m_shadowMapSize;
         imgInfo.extent.depth = 1;
         imgInfo.mipLevels = 1;
-        imgInfo.arrayLayers = 1;
+        imgInfo.arrayLayers = m_numCascades;
         imgInfo.format = VK_FORMAT_D32_SFLOAT;
         imgInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
         imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -236,16 +236,25 @@ void Renderer::Init(VulkanContext* context, Surface* surface, GLFWwindow* window
         VkImageViewCreateInfo viewInfo{};
         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         viewInfo.image = m_shadowMapImage;
-        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
         viewInfo.format = VK_FORMAT_D32_SFLOAT;
         viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
         viewInfo.subresourceRange.baseMipLevel = 0;
         viewInfo.subresourceRange.levelCount = 1;
-        viewInfo.subresourceRange.baseArrayLayer = 0;
-        viewInfo.subresourceRange.layerCount = 1;
 
-        if (vkCreateImageView(m_context->device.GetDevice(), &viewInfo, nullptr, &m_shadowMapView) != VK_SUCCESS)
-            throw std::runtime_error("failed to create shadow map image view!");
+        for (uint32_t i = 0; i < m_numCascades; i++)
+        {
+            viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+            viewInfo.subresourceRange.baseArrayLayer = i;
+            viewInfo.subresourceRange.layerCount = 1;
+            if (vkCreateImageView(m_context->device.GetDevice(), &viewInfo, nullptr, &m_shadowMapViews[i]) != VK_SUCCESS)
+                throw std::runtime_error("failed to create shadow cascade image view!");
+        }
+
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+        viewInfo.subresourceRange.baseArrayLayer = 0;
+        viewInfo.subresourceRange.layerCount = m_numCascades;
+        if (vkCreateImageView(m_context->device.GetDevice(), &viewInfo, nullptr, &m_shadowMapArrayView) != VK_SUCCESS)
+            throw std::runtime_error("failed to create shadow array image view!");
     }
 
     {
@@ -257,7 +266,7 @@ void Renderer::Init(VulkanContext* context, Surface* surface, GLFWwindow* window
         samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
         samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
         samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-        samplerInfo.compareEnable = VK_FALSE;
+        samplerInfo.compareEnable = VK_TRUE;
         samplerInfo.compareOp = VK_COMPARE_OP_LESS;
         samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
 
@@ -266,7 +275,7 @@ void Renderer::Init(VulkanContext* context, Surface* surface, GLFWwindow* window
     }
 
     m_descriptorManager.CreateShadowSetLayout();
-    m_descriptorManager.CreateShadowDescriptorSet(m_shadowMapView, m_shadowSampler);
+    m_descriptorManager.CreateShadowDescriptorSet(m_shadowMapArrayView, m_shadowSampler);
 
     m_descriptorManager.CreateGBufferDescriptorSet();
     m_descriptorManager.CreateCompositeDescriptorSet();
@@ -364,8 +373,17 @@ void Renderer::Render()
         ImGui::Begin("Shadow Controls");
         ImGui::SliderFloat("Depth Bias", &m_shadowBiasConstant, 0.0f, 0.05f, "%.5f", ImGuiSliderFlags_AlwaysClamp);
         ImGui::SliderFloat("Slope Bias", &m_shadowBiasSlope, 0.0f, 5.0f, "%.1f", ImGuiSliderFlags_AlwaysClamp);
-        ImGui::SliderInt("PCF Kernel", &m_shadowPcfKernel, 1, 3);
-        ImGui::Text("Kernel: %dx%d (1=hardware, 3=manual 3x3)", m_shadowPcfKernel, m_shadowPcfKernel);
+        ImGui::SliderFloat("Normal Offset", &m_normalOffsetBias, 0.0f, 0.1f, "%.4f", ImGuiSliderFlags_AlwaysClamp);
+        ImGui::SliderFloat("Shader Depth Bias", &m_shadowDepthBias, 0.0f, 0.01f, "%.5f", ImGuiSliderFlags_AlwaysClamp);
+        const char* pcfModes[] = { "Hardware 2x2", "Manual 3x3", "Poisson Disk" };
+        int pcfMode = m_shadowPcfKernel;
+        if (ImGui::Combo("PCF Mode", &pcfMode, pcfModes, IM_ARRAYSIZE(pcfModes)))
+        {
+            if (pcfMode == 0) m_shadowPcfKernel = 1;
+            else if (pcfMode == 1) m_shadowPcfKernel = 3;
+            else m_shadowPcfKernel = 5;
+        }
+        ImGui::Checkbox("Debug Cascades", &m_debugCascades);
         ImGui::End();
     }
 
@@ -470,7 +488,64 @@ void Renderer::Render()
         }
     }
 
-    glm::mat4 lightSpaceMatrix(1.0f);
+    auto computeLightMatrix = [&](const std::vector<glm::vec3>& corners, uint32_t cascadeIdx) -> glm::mat4
+    {
+        glm::vec3 lightDir = glm::normalize(m_lightDir);
+        glm::vec3 up = glm::abs(glm::dot(lightDir, glm::vec3(0.0f, 1.0f, 0.0f))) > 0.99f
+            ? glm::vec3(1.0f, 0.0f, 0.0f) : glm::vec3(0.0f, 1.0f, 0.0f);
+
+        glm::vec3 center(0.0f);
+        for (auto& c : corners) center += c;
+        center /= 8.0f;
+
+        float radius = glm::distance(corners[0], center);
+        glm::vec3 lightPos = center - lightDir * radius * 2.0f;
+        glm::mat4 lightView = glm::lookAt(lightPos, center, up);
+
+        glm::vec3 sceneMin(1e30f), sceneMax(-1e30f);
+        for (auto& c : corners)
+        {
+            glm::vec4 ls = lightView * glm::vec4(c, 1.0f);
+            sceneMin = glm::min(sceneMin, glm::vec3(ls));
+            sceneMax = glm::max(sceneMax, glm::vec3(ls));
+        }
+        for (Object* obj : m_scene.GetObjects())
+        {
+            if (obj && obj->IsActive())
+            {
+                glm::vec3 pos = obj->GetTransform()->GetPosition();
+                glm::vec4 lp = lightView * glm::vec4(pos, 1.0f);
+                sceneMin = glm::min(sceneMin, glm::vec3(lp) - 5.0f);
+                sceneMax = glm::max(sceneMax, glm::vec3(lp) + 5.0f);
+            }
+        }
+
+        float zNear = std::max(0.1f, -sceneMax.z);
+        float zFar = zNear + std::max(1.0f, -sceneMin.z - zNear);
+
+        // Padding: extend bounds by 20% to reduce edge clipping
+        const float padFactor = 0.2f;
+        glm::vec3 extent = sceneMax - sceneMin;
+        sceneMin -= extent * padFactor;
+        sceneMax += extent * padFactor;
+        extent = sceneMax - sceneMin;
+
+        // Texel-snap bounds — per-cascade resolution
+        float cascadeSize = (float)m_cascadeSizes[cascadeIdx];
+        float texelUnitsX = extent.x / cascadeSize;
+        float texelUnitsY = extent.y / cascadeSize;
+        sceneMin.x = std::floor(sceneMin.x / texelUnitsX) * texelUnitsX;
+        sceneMax.x = std::ceil(sceneMax.x / texelUnitsX) * texelUnitsX;
+        sceneMin.y = std::floor(sceneMin.y / texelUnitsY) * texelUnitsY;
+        sceneMax.y = std::ceil(sceneMax.y / texelUnitsY) * texelUnitsY;
+
+        glm::mat4 lightProj = glm::ortho(sceneMin.x, sceneMax.x, sceneMin.y, sceneMax.y, zNear, zFar);
+        lightProj[1][1] *= -1;
+        return lightProj * lightView;
+    };
+
+    glm::mat4 lightMatrices[3] = {};
+    glm::vec4 cascadeSplits(0.0f);
     {
         auto& lights = m_scene.GetLights();
         if (!lights.empty() && lights[0] && lights[0]->GetType() == LightType::Directional)
@@ -486,52 +561,39 @@ void Renderer::Render()
             sun->SetDirection(m_lightDir);
             sun->SetIntensity(m_lightIntensity);
 
-            glm::vec3 lightDir = glm::normalize(sun->GetDirection());
-            glm::vec3 up = glm::abs(glm::dot(lightDir, glm::vec3(0.0f, 1.0f, 0.0f))) > 0.99f
-                ? glm::vec3(1.0f, 0.0f, 0.0f) : glm::vec3(0.0f, 1.0f, 0.0f);
-
             Camera* cam = m_scene.GetCamera();
-            auto corners = cam->GetFrustumCorners();
+            float nearP = cam->GetNearPlane();
+            float farP = cam->GetFarPlane();
 
-            glm::vec3 center(0.0f);
-            for (auto& c : corners)
-                center += c;
-            center /= 8.0f;
-
-            float radius = glm::distance(corners[0], center);
-            glm::vec3 lightPos = center - lightDir * radius * 2.0f;
-            glm::mat4 lightView = glm::lookAt(lightPos, center, up);
-
-            glm::vec3 sceneMin(1e30f);
-            glm::vec3 sceneMax(-1e30f);
-            for (auto& c : corners)
+            // PSSM cascade splits
+            float splits[4] = { nearP, 0.0f, 0.0f, farP };
+            for (uint32_t i = 1; i < m_numCascades; i++)
             {
-                glm::vec4 ls = lightView * glm::vec4(c, 1.0f);
-                sceneMin = glm::min(sceneMin, glm::vec3(ls));
-                sceneMax = glm::max(sceneMax, glm::vec3(ls));
+                float f = float(i) / float(m_numCascades);
+                float logSplit = nearP * pow(farP / nearP, f);
+                float uniformSplit = nearP + (farP - nearP) * f;
+                splits[i] = m_cascadeSplitLambda * logSplit + (1.0f - m_cascadeSplitLambda) * uniformSplit;
             }
-            for (Object* obj : m_scene.GetObjects())
+            splits[m_numCascades] = farP;
+
+            cascadeSplits = glm::vec4(splits[1], splits[2], splits[3], 0.0f);
+
+            for (uint32_t i = 0; i < m_numCascades; i++)
             {
-                if (obj && obj->IsActive())
-                {
-                    glm::vec3 pos = obj->GetTransform()->GetPosition();
-                    glm::vec4 lp = lightView * glm::vec4(pos, 1.0f);
-                    sceneMin = glm::min(sceneMin, glm::vec3(lp) - 5.0f);
-                    sceneMax = glm::max(sceneMax, glm::vec3(lp) + 5.0f);
-                }
+                auto cascadeCorners = cam->GetFrustumCorners(splits[i], splits[i + 1]);
+                lightMatrices[i] = computeLightMatrix(cascadeCorners, i);
             }
-
-            float zNear = std::max(0.1f, -sceneMax.z);
-            float zFar = zNear + std::max(1.0f, -sceneMin.z - zNear);
-
-            glm::mat4 lightProj = glm::ortho(sceneMin.x, sceneMax.x, sceneMin.y, sceneMax.y, zNear, zFar);
-            lightProj[1][1] *= -1;
-            lightSpaceMatrix = lightProj * lightView;
         }
     }
     m_scene.Update(m_deltaTime, &m_resourceManager);
 
-    m_resourceManager.UpdatePerFrameUBO(imageIndex, *m_scene.GetCamera(), lightSpaceMatrix);
+    float maxSize = (float)m_shadowMapSize;
+    float cascadeUVScale[3] = {
+        (float)m_cascadeSizes[0] / maxSize,
+        (float)m_cascadeSizes[1] / maxSize,
+        (float)m_cascadeSizes[2] / maxSize
+    };
+    m_resourceManager.UpdatePerFrameUBO(imageIndex, *m_scene.GetCamera(), lightMatrices, cascadeSplits, m_shadowPcfKernel, m_normalOffsetBias, m_shadowDepthBias, cascadeUVScale, m_debugCascades);
 
     VkCommandBuffer cmd = m_commandBufferManager.GetCommandBuffer(m_currentFrame);
     vkResetCommandBuffer(cmd, 0);
@@ -575,62 +637,87 @@ void Renderer::Render()
     scissor.extent = m_swapChain.GetSwapChainExtent();
 
     {
-        transitionImage(m_shadowMapImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
-            VK_IMAGE_ASPECT_DEPTH_BIT, 0, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT);
+        VkImageMemoryBarrier barrier{};
+        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        barrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.image = m_shadowMapImage;
+        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+        barrier.subresourceRange.baseMipLevel = 0;
+        barrier.subresourceRange.levelCount = 1;
+        barrier.subresourceRange.baseArrayLayer = 0;
+        barrier.subresourceRange.layerCount = m_numCascades;
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+            0, 0, nullptr, 0, nullptr, 1, &barrier);
 
-        VkRenderingAttachmentInfo shadowDepth{};
-        shadowDepth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-        shadowDepth.imageView = m_shadowMapView;
-        shadowDepth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-        shadowDepth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        shadowDepth.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-        shadowDepth.clearValue.depthStencil = {1.0f, 0};
-
-        VkRenderingInfo shadowRendering{};
-        shadowRendering.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-        shadowRendering.renderArea = {{0, 0}, {m_shadowMapSize, m_shadowMapSize}};
-        shadowRendering.layerCount = 1;
-        shadowRendering.colorAttachmentCount = 0;
-        shadowRendering.pColorAttachments = nullptr;
-        shadowRendering.pDepthAttachment = &shadowDepth;
-
-        vkCmdBeginRendering(cmd, &shadowRendering);
-
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetShadowPipeline());
-
-        VkViewport shadowVP{};
-        shadowVP.x = 0.0f;
-        shadowVP.y = 0.0f;
-        shadowVP.width = (float)m_shadowMapSize;
-        shadowVP.height = (float)m_shadowMapSize;
-        shadowVP.minDepth = 0.0f;
-        shadowVP.maxDepth = 1.0f;
-        vkCmdSetViewport(cmd, 0, 1, &shadowVP);
-
-        VkRect2D shadowScissor{};
-        shadowScissor.offset = {0, 0};
-        shadowScissor.extent = {m_shadowMapSize, m_shadowMapSize};
-        vkCmdSetScissor(cmd, 0, 1, &shadowScissor);
-
-        vkCmdSetDepthBias(cmd, m_shadowBiasConstant, 0.0f, m_shadowBiasSlope);
-
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetShadowPipelineLayout(), 0, 1, &m_descriptorManager.GetDescriptorSets()[imageIndex], 0, nullptr);
-
-        for (Object* obj : m_scene.GetObjects())
+        for (uint32_t cascade = 0; cascade < m_numCascades; cascade++)
         {
-            if (!obj || !obj->IsActive() || obj->IsTransparent()) continue;
+            uint32_t cascadeSize = m_cascadeSizes[cascade];
+            float fSize = (float)cascadeSize;
 
-            uint32_t dynamicOffset = obj->GetUBOSlot() * m_resourceManager.GetObjectUBOStride();
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetShadowPipelineLayout(), 1, 1, m_descriptorManager.GetPerObjectDescriptorSets().data(), 1, &dynamicOffset);
-            obj->Draw(cmd, m_descriptorManager.GetPerObjectDescriptorSets()[0], m_resourceManager.GetObjectUBOStride());
+            VkViewport shadowVP{};
+            shadowVP.x = 0.0f;
+            shadowVP.y = 0.0f;
+            shadowVP.width = fSize;
+            shadowVP.height = fSize;
+            shadowVP.minDepth = 0.0f;
+            shadowVP.maxDepth = 1.0f;
+            vkCmdSetViewport(cmd, 0, 1, &shadowVP);
+
+            VkRect2D shadowScissor{};
+            shadowScissor.offset = {0, 0};
+            shadowScissor.extent = {cascadeSize, cascadeSize};
+            vkCmdSetScissor(cmd, 0, 1, &shadowScissor);
+
+            VkRenderingAttachmentInfo shadowDepth{};
+            shadowDepth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+            shadowDepth.imageView = m_shadowMapViews[cascade];
+            shadowDepth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+            shadowDepth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            shadowDepth.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+            shadowDepth.clearValue.depthStencil = {1.0f, 0};
+
+            VkRenderingInfo shadowRendering{};
+            shadowRendering.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+            shadowRendering.renderArea = {{0, 0}, {cascadeSize, cascadeSize}};
+            shadowRendering.layerCount = 1;
+            shadowRendering.colorAttachmentCount = 0;
+            shadowRendering.pColorAttachments = nullptr;
+            shadowRendering.pDepthAttachment = &shadowDepth;
+
+            vkCmdBeginRendering(cmd, &shadowRendering);
+
+            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetShadowPipeline());
+
+            vkCmdSetDepthBias(cmd, m_shadowBiasConstant, 0.01f, m_shadowBiasSlope);
+
+            int32_t cascadeIdx = (int32_t)cascade;
+            vkCmdPushConstants(cmd, m_pipelineManager.GetShadowPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(int32_t), &cascadeIdx);
+
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetShadowPipelineLayout(), 0, 1, &m_descriptorManager.GetDescriptorSets()[imageIndex], 0, nullptr);
+
+            for (Object* obj : m_scene.GetObjects())
+            {
+                if (!obj || !obj->IsActive() || obj->IsTransparent()) continue;
+
+                uint32_t dynamicOffset = obj->GetUBOSlot() * m_resourceManager.GetObjectUBOStride();
+                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineManager.GetShadowPipelineLayout(), 1, 1, m_descriptorManager.GetPerObjectDescriptorSets().data(), 1, &dynamicOffset);
+                obj->Draw(cmd, m_descriptorManager.GetPerObjectDescriptorSets()[0], m_resourceManager.GetObjectUBOStride());
+            }
+
+            vkCmdEndRendering(cmd);
         }
 
-        vkCmdEndRendering(cmd);
-
-        transitionImage(m_shadowMapImage, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
-            VK_IMAGE_ASPECT_DEPTH_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
-            VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+        barrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+        barrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            0, 0, nullptr, 0, nullptr, 1, &barrier);
     }
 
     {
@@ -1304,10 +1391,16 @@ void Renderer::Destroy()
         vkDestroySampler(device, m_shadowSampler, nullptr);
         m_shadowSampler = VK_NULL_HANDLE;
     }
-    if (m_shadowMapView != VK_NULL_HANDLE)
+    for (uint32_t i = 0; i < m_numCascades; i++)
     {
-        vkDestroyImageView(device, m_shadowMapView, nullptr);
-        m_shadowMapView = VK_NULL_HANDLE;
+        if (m_shadowMapViews[i] != VK_NULL_HANDLE)
+            vkDestroyImageView(device, m_shadowMapViews[i], nullptr);
+        m_shadowMapViews[i] = VK_NULL_HANDLE;
+    }
+    if (m_shadowMapArrayView != VK_NULL_HANDLE)
+    {
+        vkDestroyImageView(device, m_shadowMapArrayView, nullptr);
+        m_shadowMapArrayView = VK_NULL_HANDLE;
     }
     if (m_shadowMapImage != VK_NULL_HANDLE && m_shadowMapAllocation != VK_NULL_HANDLE)
     {

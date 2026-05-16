@@ -23,9 +23,20 @@ struct PerFrameUBO
     alignas(4) float nearPlane;
     alignas(4) float farPlane;
     alignas(4) float exposure;
-    alignas(4) float pad;
-    alignas(16) glm::mat4 lightSpaceMatrix;
+    alignas(4) int pcfKernel;
+    alignas(16) glm::mat4 lightSpaceMatrix;  // cascade 0
+    alignas(4) float normalOffsetBias;
+    alignas(4) float depthBias;
+    alignas(8) glm::vec2 _pad0;              // padding
+    alignas(16) glm::mat4 lightSpaceMatrices[2]; // cascades 1, 2
+    alignas(16) glm::vec4 cascadeSplits;     // x=c0 end, y=c1 end, z=c2 end
+    alignas(4) float cascadeUVScale0;        // UV scale for cascade 0 (cascadeSize / maxSize)
+    alignas(4) float cascadeUVScale1;        // UV scale for cascade 1
+    alignas(4) float cascadeUVScale2;        // UV scale for cascade 2
+    alignas(4) int debugCascades;            // debug cascade visualization toggle
 };
+
+static const uint32_t NUM_CASCADES = 3;
 
 struct LightUBO
 {
@@ -82,7 +93,7 @@ public:
     void CreateAllocator();
     void SetAllocator(VmaAllocator allocator) { m_allocator = allocator; }
 
-    void UpdatePerFrameUBO(uint32_t currentImage, Camera& camera, const glm::mat4& lightSpaceMatrix = glm::mat4(1.0f));
+    void UpdatePerFrameUBO(uint32_t currentImage, Camera& camera, const glm::mat4 lightSpaceMatrices[3], const glm::vec4& cascadeSplits, int pcfKernel, float normalOffsetBias, float depthBias, const float cascadeUVScale[3], bool debugCascades);
     void UpdatePerObjectUBO(uint32_t slot, const PerObjectUBO& data);
     void SetExposure(float exposure) { m_exposure = exposure; }
     float GetExposure() const { return m_exposure; }

@@ -36,6 +36,7 @@ public:
     const glm::mat4& GetViewMatrix();
     const glm::mat4& GetProjectionMatrix();
     std::vector<glm::vec3> GetFrustumCorners() const;
+    std::vector<glm::vec3> GetFrustumCorners(float nearPlane, float farPlane) const;
 
     void MarkDirty();
 

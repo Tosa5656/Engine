@@ -115,7 +115,7 @@ void ResourceManager::CreateObjectBuffer(uint32_t maxObjects)
     CreateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, m_objectBuffer, m_objectAllocation);
 }
 
-void ResourceManager::UpdatePerFrameUBO(uint32_t currentImage, Camera& camera, const glm::mat4& lightSpaceMatrix)
+void ResourceManager::UpdatePerFrameUBO(uint32_t currentImage, Camera& camera, const glm::mat4 lightSpaceMatrices[3], const glm::vec4& cascadeSplits, int pcfKernel, float normalOffsetBias, float depthBias, const float cascadeUVScale[3], bool debugCascades)
 {
     PerFrameUBO ubo{};
     ubo.view = camera.GetViewMatrix();
@@ -124,7 +124,17 @@ void ResourceManager::UpdatePerFrameUBO(uint32_t currentImage, Camera& camera, c
     ubo.nearPlane = camera.GetNearPlane();
     ubo.farPlane = camera.GetFarPlane();
     ubo.exposure = m_exposure;
-    ubo.lightSpaceMatrix = lightSpaceMatrix;
+    ubo.lightSpaceMatrix = lightSpaceMatrices[0];
+    ubo.lightSpaceMatrices[0] = lightSpaceMatrices[1];
+    ubo.lightSpaceMatrices[1] = lightSpaceMatrices[2];
+    ubo.cascadeSplits = cascadeSplits;
+    ubo.pcfKernel = pcfKernel;
+    ubo.normalOffsetBias = normalOffsetBias;
+    ubo.depthBias = depthBias;
+    ubo.cascadeUVScale0 = cascadeUVScale[0];
+    ubo.cascadeUVScale1 = cascadeUVScale[1];
+    ubo.cascadeUVScale2 = cascadeUVScale[2];
+    ubo.debugCascades = debugCascades ? 1 : 0;
 
     void* data;
     vmaMapMemory(m_allocator, m_perFrameAllocations[currentImage], &data);

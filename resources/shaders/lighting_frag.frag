@@ -10,8 +10,17 @@ layout(set = 0, binding = 0) uniform PerFrameUBO
     float nearPlane;
     float farPlane;
     float exposure;
-    float pad;
+    int pcfKernel;
     mat4 lightSpaceMatrix;
+    float normalOffsetBias;
+    float depthBias;
+    vec2 _pad0;
+    mat4 lightSpaceMatrices[2];
+    vec4 cascadeSplits;
+    float cascadeUVScale0;
+    float cascadeUVScale1;
+    float cascadeUVScale2;
+    int debugCascades;
 } perFrame;
 
 layout(set = 1, binding = 0) uniform sampler2D gPosition;
@@ -35,33 +44,150 @@ layout(set = 2, binding = 0) readonly buffer LightSSBO
     int lightCount;
 } lightData;
 
-layout(set = 3, binding = 0) uniform sampler2D shadowMap;
+layout(set = 3, binding = 0) uniform sampler2DArrayShadow shadowMap;
 
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec4 outEmissive;
 
-float ShadowPCF(vec3 lightSpacePos, float cosTheta)
+const vec2 poissonDisk[16] = vec2[](
+    vec2(-0.942, -0.334), vec2(0.942, 0.334),
+    vec2(-0.612, -0.791), vec2(0.612, 0.791),
+    vec2(-0.205, -0.979), vec2(0.205, 0.979),
+    vec2(-0.821,  0.571), vec2(0.821, -0.571),
+    vec2(-0.376,  0.927), vec2(0.376, -0.927),
+    vec2(-0.998,  0.067), vec2(0.998, -0.067),
+    vec2(-0.122,  0.993), vec2(0.122, -0.993),
+    vec2(-0.706, -0.708), vec2(0.706, 0.708)
+);
+
+float rand(vec2 co)
 {
-    vec3 proj = lightSpacePos * 0.5 + 0.5;
-    if (proj.x < 0.0 || proj.x > 1.0 || proj.y < 0.0 || proj.y > 1.0 || proj.z > 1.0)
-        return 0.0;
+    return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
+}
 
-    float bias = 0.005 * tan(acos(cosTheta));
-    bias = clamp(bias, 0.0, 0.01);
+mat4 getLightMatrix(int cascade)
+{
+    if (cascade == 0) return perFrame.lightSpaceMatrix;
+    return perFrame.lightSpaceMatrices[cascade - 1];
+}
 
-    ivec2 texSize = textureSize(shadowMap, 0);
-    vec2 texelSize = 1.0 / vec2(texSize);
+float getCascadeUVScale(int cascade)
+{
+    if (cascade == 0) return perFrame.cascadeUVScale0;
+    if (cascade == 1) return perFrame.cascadeUVScale1;
+    return perFrame.cascadeUVScale2;
+}
 
-    float shadow = 0.0;
-    for (int x = -1; x <= 1; x++)
+vec3 applyNormalOffset(vec3 worldPos, vec3 normal, vec3 lightDir)
+{
+    float cosTheta = max(dot(normal, lightDir), 0.001);
+    float offsetScale = tan(acos(min(cosTheta, 0.999)));
+    offsetScale = min(offsetScale, 5.0);
+    float offset = offsetScale * perFrame.normalOffsetBias;
+    return worldPos + normal * offset;
+}
+
+float sampleCascade(sampler2DArrayShadow samp, vec2 uv, int layer, float ref, vec2 texelSize, float uvScale, vec2 noiseSeed)
+{
+    vec2 scaledUV = uv * uvScale;
+    vec2 scaledTexelSize = texelSize / uvScale;
+    if (perFrame.pcfKernel == 1)
     {
-        for (int y = -1; y <= 1; y++)
-        {
-            float depth = texture(shadowMap, proj.xy + vec2(x, y) * texelSize).r;
-            shadow += (proj.z - bias > depth) ? 1.0 : 0.0;
-        }
+        return texture(samp, vec4(scaledUV, layer, ref));
     }
-    return shadow / 9.0;
+    else if (perFrame.pcfKernel == 3)
+    {
+        float sum = 0.0;
+        for (int x = -1; x <= 1; x++)
+            for (int y = -1; y <= 1; y++)
+                sum += texture(samp, vec4(scaledUV + vec2(x, y) * scaledTexelSize, layer, ref));
+        return sum / 9.0;
+    }
+    else
+    {
+        float angle = rand(noiseSeed) * 6.2831853;
+        float s = sin(angle);
+        float c = cos(angle);
+        mat2 rot = mat2(c, -s, s, c);
+        float sum = 0.0;
+        for (int i = 0; i < 16; i++)
+        {
+            vec2 offset = rot * poissonDisk[i] * scaledTexelSize * 2.0;
+            sum += texture(samp, vec4(scaledUV + offset, layer, ref));
+        }
+        return sum / 16.0;
+    }
+}
+
+float computeShadow(vec3 worldPos, vec3 normal, vec3 lightDir, out int cascadeIdx)
+{
+    vec3 posWithOffset = applyNormalOffset(worldPos, normal, lightDir);
+
+    float viewDepth = abs((perFrame.view * vec4(worldPos, 1.0)).z);
+    ivec3 texSize3 = textureSize(shadowMap, 0);
+    vec2 texelSize = 1.0 / vec2(texSize3.xy);
+
+    cascadeIdx = -1;
+
+    // Use ORIGINAL position for cascade selection to prevent normal offset
+    // from hopping between cascades. Clamp offset UV instead of skipping,
+    // so shadows don't vanish when the offset pushes past cascade edges.
+    for (int i = 0; i < 3; i++)
+    {
+        mat4 lightMat = getLightMatrix(i);
+        vec4 lsPosOrig = lightMat * vec4(worldPos, 1.0);
+        vec3 projOrig = lsPosOrig.xyz * 0.5 + 0.5;
+
+        if (projOrig.x < 0.0 || projOrig.x > 1.0 ||
+            projOrig.y < 0.0 || projOrig.y > 1.0 ||
+            projOrig.z < 0.0 || projOrig.z > 1.0)
+            continue;
+
+        vec4 lsPosOff = lightMat * vec4(posWithOffset, 1.0);
+        vec3 proj = lsPosOff.xyz * 0.5 + 0.5;
+
+        // Clamp UV and depth so normal offset at cascade edges
+        // doesn't push samples past the cascade far plane,
+        // which would make the hardware comparison always fail.
+        proj.xyz = clamp(proj.xyz, 0.0, 1.0);
+
+        float uvScale = getCascadeUVScale(i);
+        float ref = proj.z - perFrame.depthBias;
+        vec2 noiseSeed = worldPos.zx;
+        float shadow = sampleCascade(shadowMap, proj.xy, i, ref, texelSize, uvScale, noiseSeed);
+
+        // Blend with next cascade if near split boundary and next cascade covers fragment
+        if (i < 2)
+        {
+            float nextSplit = (i == 0) ? perFrame.cascadeSplits.x : perFrame.cascadeSplits.y;
+            float thisSplit = (i == 0) ? perFrame.nearPlane : perFrame.cascadeSplits.x;
+            float blendDist = (nextSplit - thisSplit) * 0.15;
+            float blend = smoothstep(nextSplit - blendDist, nextSplit + blendDist, viewDepth);
+            blend = clamp(blend, 0.0, 1.0);
+
+            if (blend > 0.001)
+            {
+                float uvScale2 = getCascadeUVScale(i + 1);
+                mat4 lightMat2 = getLightMatrix(i + 1);
+                vec4 lsPos2 = lightMat2 * vec4(posWithOffset, 1.0);
+                vec3 proj2 = lsPos2.xyz * 0.5 + 0.5;
+
+                if (proj2.x >= 0.0 && proj2.x <= 1.0 &&
+                    proj2.y >= 0.0 && proj2.y <= 1.0 &&
+                    proj2.z >= 0.0 && proj2.z <= 1.0)
+                {
+                    float ref2 = proj2.z - perFrame.depthBias;
+                    float shadow2 = sampleCascade(shadowMap, proj2.xy, i + 1, ref2, texelSize, uvScale2, noiseSeed);
+                    shadow = mix(shadow, shadow2, blend);
+                }
+            }
+        }
+
+        cascadeIdx = i;
+        return 1.0 - shadow;
+    }
+
+    return 0.0;
 }
 
 vec3 ComputeDirectionalLight(Light light, vec3 normal, vec3 viewDir, vec3 albedo, float metallic, vec3 worldPos)
@@ -78,13 +204,29 @@ vec3 ComputeDirectionalLight(Light light, vec3 normal, vec3 viewDir, vec3 albedo
     vec3 specular = lightColor * spec * metallic;
 
     float shadow = 0.0;
+    int cascadeIdx = -1;
     if (light.color.w > 0.5)
+        shadow = computeShadow(worldPos, normal, lightDir, cascadeIdx);
+
+    vec3 result = (1.0 - shadow) * (lightColor * diffuse + specular);
+
+    // Debug cascade visualization
+    if (perFrame.debugCascades != 0)
     {
-        vec4 lightSpacePos = perFrame.lightSpaceMatrix * vec4(worldPos, 1.0);
-        shadow = ShadowPCF(lightSpacePos.xyz, max(dot(normal, lightDir), 0.0));
+        float shade = (1.0 - shadow) * 0.5 + 0.5;
+        vec3 debugColor;
+        if (cascadeIdx == 0)
+            debugColor = vec3(1.0, 0.0, 0.0);
+        else if (cascadeIdx == 1)
+            debugColor = vec3(0.0, 1.0, 0.0);
+        else if (cascadeIdx == 2)
+            debugColor = vec3(0.0, 0.0, 1.0);
+        else
+            debugColor = vec3(0.02);
+        result = mix(result, result * debugColor, 0.5);
     }
 
-    return (1.0 - shadow) * (lightColor * diffuse + specular);
+    return result;
 }
 
 vec3 ComputePointLight(Light light, vec3 fragPos, vec3 normal, vec3 viewDir, vec3 albedo, float metallic)
