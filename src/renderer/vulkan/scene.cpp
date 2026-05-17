@@ -17,15 +17,89 @@ void Scene::Init() {}
 
 void Scene::Update(float deltaTime, class ResourceManager* resourceManager) 
 {
-    std::vector<LightUBO> lightData;
+    m_spotShadowCount = 0;
+    m_pointShadowCount = 0;
     for (Light* light : m_lights)
     {
-        if (light)
+        if (!light) continue;
+        if (light->GetType() == LightType::Spot && light->GetCastShadows()) m_spotShadowCount++;
+        if (light->GetType() == LightType::Point && light->GetCastShadows()) m_pointShadowCount++;
+    }
+
+    m_spotShadowMatrices.clear();
+    m_spotShadowMatrices.reserve(m_spotShadowCount);
+    m_pointShadowMatrices.clear();
+    m_pointShadowMatrices.reserve(m_pointShadowCount * 6);
+
+    std::vector<LightUBO> lightData;
+    int spotIdx = 0;
+    int pointIdx = 0;
+    for (Light* light : m_lights)
+    {
+        if (!light) continue;
+
+        LightUBO ubo = PackLight(light);
+
+        if (light->GetType() == LightType::Spot && light->GetCastShadows())
         {
-            lightData.push_back(PackLight(light));
+            const SpotLight* sl = static_cast<const SpotLight*>(light);
+            ubo.params.w = static_cast<float>(spotIdx);
+
+            glm::vec3 pos = sl->GetPosition();
+            glm::vec3 dir = glm::normalize(sl->GetDirection());
+            glm::vec3 up = glm::abs(glm::dot(dir, glm::vec3(0.0f, 1.0f, 0.0f))) > 0.99f
+                ? glm::vec3(1.0f, 0.0f, 0.0f) : glm::vec3(0.0f, 1.0f, 0.0f);
+            float fov = 2.0f * sl->GetOuterCutoff();
+            float radius = sl->GetRadius();
+            glm::mat4 view = glm::lookAt(pos, pos + dir, up);
+            glm::mat4 proj = glm::perspective(fov, 1.0f, 0.1f, radius);
+            proj[1][1] *= -1;
+            ubo.shadowMatrix = proj * view;
+
+            m_spotShadowMatrices.push_back(ubo.shadowMatrix);
+            spotIdx++;
         }
+        else if (light->GetType() == LightType::Point && light->GetCastShadows())
+        {
+            const PointLight* pl = static_cast<const PointLight*>(light);
+            ubo.params.w = static_cast<float>(pointIdx);
+
+            glm::vec3 pos = pl->GetPosition();
+            float radius = pl->GetRadius();
+            glm::mat4 proj = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, radius);
+            proj[1][1] *= -1;
+
+            glm::vec3 faceDirs[6] = {
+                glm::vec3(1,0,0), glm::vec3(-1,0,0),
+                glm::vec3(0,1,0), glm::vec3(0,-1,0),
+                glm::vec3(0,0,1), glm::vec3(0,0,-1)
+            };
+            glm::vec3 upVecs[6] = {
+                glm::vec3(0,-1,0), glm::vec3(0,-1,0),
+                glm::vec3(0,0,1),  glm::vec3(0,0,-1),
+                glm::vec3(0,-1,0), glm::vec3(0,-1,0)
+            };
+
+            for (int f = 0; f < 6; f++)
+            {
+                glm::mat4 view = glm::lookAt(pos, pos + faceDirs[f], upVecs[f]);
+                m_pointShadowMatrices.push_back(proj * view);
+            }
+
+            pointIdx++;
+        }
+        else
+        {
+            ubo.params.w = -1.0f;
+        }
+
+        lightData.push_back(ubo);
     }
     resourceManager->UpdateLightBuffer(lightData, static_cast<int>(lightData.size()));
+
+    // Upload point shadow matrices
+    if (m_pointShadowCount > 0)
+        resourceManager->UpdatePointShadowMatrices(m_pointShadowMatrices.data(), m_pointShadowCount * 6);
 }
 
 void Scene::Destroy() 

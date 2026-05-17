@@ -17,6 +17,7 @@ struct Light {
     vec4 color;
     vec4 params;
     vec4 atten;
+    mat4 shadowMatrix;
 };
 
 layout(set = 1, binding = 0) buffer LightSSBO {

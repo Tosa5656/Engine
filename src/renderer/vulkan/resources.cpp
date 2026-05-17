@@ -66,6 +66,12 @@ void ResourceManager::Cleanup()
         vmaDestroyBuffer(m_allocator, m_luminanceStagingBuffer, m_luminanceStagingAllocation);
         m_luminanceStagingBuffer = VK_NULL_HANDLE;
     }
+
+    if (m_pointShadowMatrixBuffer != VK_NULL_HANDLE)
+    {
+        vmaDestroyBuffer(m_allocator, m_pointShadowMatrixBuffer, m_pointShadowMatrixAllocation);
+        m_pointShadowMatrixBuffer = VK_NULL_HANDLE;
+    }
 }
 
 void ResourceManager::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkBuffer& buffer, VmaAllocation& allocation)
@@ -115,7 +121,7 @@ void ResourceManager::CreateObjectBuffer(uint32_t maxObjects)
     CreateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, m_objectBuffer, m_objectAllocation);
 }
 
-void ResourceManager::UpdatePerFrameUBO(uint32_t currentImage, Camera& camera, const glm::mat4 lightSpaceMatrices[3], const glm::vec4& cascadeSplits, int pcfKernel, float normalOffsetBias, float depthBias, const float cascadeUVScale[3], bool debugCascades)
+void ResourceManager::UpdatePerFrameUBO(uint32_t currentImage, Camera& camera, const glm::mat4 lightSpaceMatrices[3], const glm::vec4& cascadeSplits, int pcfKernel, float normalOffsetBias, float depthBias, const float cascadeUVScale[3], bool debugCascades, float pcssLightSize, float pcssBlockerRadius)
 {
     PerFrameUBO ubo{};
     ubo.view = camera.GetViewMatrix();
@@ -135,6 +141,8 @@ void ResourceManager::UpdatePerFrameUBO(uint32_t currentImage, Camera& camera, c
     ubo.cascadeUVScale1 = cascadeUVScale[1];
     ubo.cascadeUVScale2 = cascadeUVScale[2];
     ubo.debugCascades = debugCascades ? 1 : 0;
+    ubo.pcssLightSize = pcssLightSize;
+    ubo.pcssBlockerRadius = pcssBlockerRadius;
 
     void* data;
     vmaMapMemory(m_allocator, m_perFrameAllocations[currentImage], &data);
@@ -160,6 +168,22 @@ void ResourceManager::UpdateLightBuffer(const std::vector<LightUBO>& lights, int
         memcpy(mappedData, lights.data(), sizeof(LightUBO) * std::min(lightCount, (int)MAX_LIGHTS));
     memcpy(static_cast<char*>(mappedData) + sizeof(LightUBO) * MAX_LIGHTS, &lightCount, sizeof(int));
     vmaUnmapMemory(m_allocator, m_lightAllocation);
+}
+
+void ResourceManager::CreatePointShadowMatrixBuffer()
+{
+    m_pointShadowMatrixBufferSize = MAX_POINT_SHADOWS * 6 * sizeof(glm::mat4);
+    CreateBuffer(m_pointShadowMatrixBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, m_pointShadowMatrixBuffer, m_pointShadowMatrixAllocation);
+}
+
+void ResourceManager::UpdatePointShadowMatrices(const glm::mat4* matrices, int count)
+{
+    VkDeviceSize uploadSize = sizeof(glm::mat4) * std::min(count, (int)(MAX_POINT_SHADOWS * 6));
+    void* data;
+    vmaMapMemory(m_allocator, m_pointShadowMatrixAllocation, &data);
+    memset(data, 0, m_pointShadowMatrixBufferSize);
+    memcpy(data, matrices, uploadSize);
+    vmaUnmapMemory(m_allocator, m_pointShadowMatrixAllocation);
 }
 
 void ResourceManager::CreateClusterGrid(uint32_t tileCountX, uint32_t tileCountY, uint32_t depthSlices)
@@ -261,7 +285,7 @@ std::vector<VkBuffer>& ResourceManager::GetPerFrameBuffers()
     return m_perFrameBuffers;
 }
 
-std::vector<VmaAllocation> ResourceManager::GetPerFrameBufferAllocations()
+std::vector<VmaAllocation>& ResourceManager::GetPerFrameBufferAllocations()
 {
     return m_perFrameAllocations;
 }

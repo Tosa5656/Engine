@@ -14,6 +14,8 @@
 #include <renderer/vulkan/camera.h>
 
 static const uint32_t MAX_LIGHTS = 1024;
+static const uint32_t MAX_SPOT_SHADOWS = 16;
+static const uint32_t MAX_POINT_SHADOWS = 4;
 
 struct PerFrameUBO
 {
@@ -34,6 +36,8 @@ struct PerFrameUBO
     alignas(4) float cascadeUVScale1;        // UV scale for cascade 1
     alignas(4) float cascadeUVScale2;        // UV scale for cascade 2
     alignas(4) int debugCascades;            // debug cascade visualization toggle
+    alignas(4) float pcssLightSize;          // light diameter for PCSS penumbra estimation
+    alignas(4) float pcssBlockerRadius;      // blocker search radius in texels (PCSS)
 };
 
 static const uint32_t NUM_CASCADES = 3;
@@ -45,6 +49,7 @@ struct LightUBO
     alignas(16) glm::vec4 color;
     alignas(16) glm::vec4 params;
     alignas(16) glm::vec4 atten;
+    alignas(16) glm::mat4 shadowMatrix;
 };
 
 enum ParallaxMode : int
@@ -93,7 +98,7 @@ public:
     void CreateAllocator();
     void SetAllocator(VmaAllocator allocator) { m_allocator = allocator; }
 
-    void UpdatePerFrameUBO(uint32_t currentImage, Camera& camera, const glm::mat4 lightSpaceMatrices[3], const glm::vec4& cascadeSplits, int pcfKernel, float normalOffsetBias, float depthBias, const float cascadeUVScale[3], bool debugCascades);
+    void UpdatePerFrameUBO(uint32_t currentImage, Camera& camera, const glm::mat4 lightSpaceMatrices[3], const glm::vec4& cascadeSplits, int pcfKernel, float normalOffsetBias, float depthBias, const float cascadeUVScale[3], bool debugCascades, float pcssLightSize, float pcssBlockerRadius);
     void UpdatePerObjectUBO(uint32_t slot, const PerObjectUBO& data);
     void SetExposure(float exposure) { m_exposure = exposure; }
     float GetExposure() const { return m_exposure; }
@@ -103,7 +108,7 @@ public:
     VkDevice GetVkDevice();
 
     std::vector<VkBuffer>& GetPerFrameBuffers();
-    std::vector<VmaAllocation> GetPerFrameBufferAllocations();
+    std::vector<VmaAllocation>& GetPerFrameBufferAllocations();
     VkBuffer GetObjectBuffer() const { return m_objectBuffer; }
     VmaAllocation GetObjectBufferAllocation() const { return m_objectAllocation; }
     uint32_t GetObjectUBOStride() const { return m_objectUBOStride; }
@@ -114,6 +119,11 @@ public:
     void UpdateLightBuffer(const std::vector<LightUBO>& lights, int lightCount);
     VkBuffer GetLightSSBO() const { return m_lightSSBO; }
     VkDeviceSize GetLightBufferSize() const { return m_lightBufferSize; }
+
+    void CreatePointShadowMatrixBuffer();
+    void UpdatePointShadowMatrices(const glm::mat4* matrices, int count);
+    VkBuffer GetPointShadowMatrixSSBO() const { return m_pointShadowMatrixBuffer; }
+    VkDeviceSize GetPointShadowMatrixBufferSize() const { return m_pointShadowMatrixBufferSize; }
     VkBuffer GetClusterCountSSBO() const { return m_clusterCountSSBO; }
     VkBuffer GetClusterIndexSSBO() const { return m_clusterIndexSSBO; }
     VkBuffer GetClusterGridInfoUBO() const { return m_clusterGridInfoUBO; }
@@ -151,6 +161,10 @@ private:
     uint32_t m_clusterCount = 0;
     static const uint32_t MAX_LIGHTS_PER_CLUSTER = 64;
     float m_exposure = 1.0f;
+
+    VkBuffer m_pointShadowMatrixBuffer = VK_NULL_HANDLE;
+    VmaAllocation m_pointShadowMatrixAllocation = VK_NULL_HANDLE;
+    VkDeviceSize m_pointShadowMatrixBufferSize = 0;
 
     VkBuffer m_luminanceStorageBuffer = VK_NULL_HANDLE;
     VmaAllocation m_luminanceStorageAllocation = VK_NULL_HANDLE;

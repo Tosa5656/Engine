@@ -49,6 +49,7 @@ struct Light
     vec4 color;
     vec4 params;
     vec4 atten;
+    mat4 shadowMatrix;
 };
 
 layout(set = 5, binding = 0) readonly buffer LightSSBO
@@ -129,10 +130,11 @@ vec3 ComputeDirectionalLight(Light light, vec3 normal, vec3 viewDir, vec3 albedo
     float intensity = light.direction.w;
     vec3 lightColor = light.color.rgb * intensity;
 
-    float diff = max(dot(normal, lightDir), 0.0);
+    vec3 toLight = -lightDir;
+    float diff = max(dot(normal, toLight), 0.0);
     vec3 diffuse = albedo * diff;
 
-    vec3 halfDir = normalize(lightDir + viewDir);
+    vec3 halfDir = normalize(toLight + viewDir);
     float spec = pow(max(dot(normal, halfDir), 0.0), 32.0);
     vec3 specular = lightColor * spec * fragMetallic;
 

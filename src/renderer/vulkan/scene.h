@@ -27,8 +27,19 @@ public:
     const std::vector<Object*>& GetObjects() const;
     const std::vector<Light*>& GetLights() const;
     LightUBO PackLight(const Light* light) const;
+
+    int GetSpotShadowCount() const { return m_spotShadowCount; }
+    const std::vector<glm::mat4>& GetSpotShadowMatrices() const { return m_spotShadowMatrices; }
+
+    int GetPointShadowCount() const { return m_pointShadowCount; }
+    const std::vector<glm::mat4>& GetPointShadowMatrices() const { return m_pointShadowMatrices; }
 private:
     Camera m_camera;
     std::vector<Object*> m_objects;
     std::vector<Light*> m_lights;
+    int m_spotShadowCount = 0;
+    std::vector<glm::mat4> m_spotShadowMatrices;
+
+    int m_pointShadowCount = 0;
+    std::vector<glm::mat4> m_pointShadowMatrices;
 };

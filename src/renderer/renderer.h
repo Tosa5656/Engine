@@ -145,16 +145,31 @@ private:
     VkImageView m_shadowMapArrayView = VK_NULL_HANDLE;  // 2D array for sampling
     VkImageView m_shadowMapViews[3] = {};                // per-cascade layer views
     VkSampler m_shadowSampler = VK_NULL_HANDLE;
+    VkSampler m_shadowDepthSampler = VK_NULL_HANDLE;
     uint32_t m_shadowMapSize = 2048;
     uint32_t m_numCascades = 3;
     uint32_t m_cascadeSizes[3] = {2048, 1024, 512};
     bool m_debugCascades = false;
+
+    VkImage m_spotShadowImage = VK_NULL_HANDLE;
+    VmaAllocation m_spotShadowAllocation = VK_NULL_HANDLE;
+    VkImageView m_spotShadowArrayView = VK_NULL_HANDLE;
+    std::vector<VkImageView> m_spotShadowLayerViews;
+    uint32_t m_spotShadowSize = 512;
+
+    VkImage m_pointShadowImage = VK_NULL_HANDLE;
+    VmaAllocation m_pointShadowAllocation = VK_NULL_HANDLE;
+    VkImageView m_pointShadowArrayView = VK_NULL_HANDLE;
+    std::vector<VkImageView> m_pointShadowLayerViews;
+    uint32_t m_pointShadowSize = 256;
     float m_cascadeSplitLambda = 0.5f;
     float m_shadowBiasConstant = 0.005f;
     float m_shadowBiasSlope = 1.5f;
     int m_shadowPcfKernel = 1;
     float m_normalOffsetBias = 0.01f;
     float m_shadowDepthBias = 0.001f;
+    float m_pcssLightSize = 0.3f;
+    float m_pcssBlockerRadius = 25.0f;
 
     float m_lightYaw = 0.0f;
     float m_lightPitch = -35.0f;

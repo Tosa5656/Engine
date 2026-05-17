@@ -429,7 +429,7 @@ void PipelineManager::CreateGBufferPipeline(Device* device, SwapChain* swapChain
     vkDestroyShaderModule(device->GetDevice(), vertShaderModule, nullptr);
 }
 
-void PipelineManager::CreateLightingPipeline(Device* device, SwapChain* swapChain, VkDescriptorSetLayout perFrameSetLayout, VkDescriptorSetLayout gbufferSetLayout, VkDescriptorSetLayout lightSetLayout, VkDescriptorSetLayout shadowSetLayout)
+void PipelineManager::CreateLightingPipeline(Device* device, SwapChain* swapChain, VkDescriptorSetLayout perFrameSetLayout, VkDescriptorSetLayout gbufferSetLayout, VkDescriptorSetLayout lightSetLayout, VkDescriptorSetLayout shadowSetLayout, VkDescriptorSetLayout spotShadowSetLayout, VkDescriptorSetLayout pointShadowSetLayout)
 {
     auto vertShaderCode = ReadFile("shaders/lighting_vert.spv");
     auto fragShaderCode = ReadFile("shaders/lighting_frag.spv");
@@ -501,8 +501,11 @@ void PipelineManager::CreateLightingPipeline(Device* device, SwapChain* swapChai
     colorBlending.attachmentCount = 2;
     colorBlending.pAttachments = colorBlendAttachments;
 
-    VkDescriptorSetLayout setLayouts[4] = { perFrameSetLayout, gbufferSetLayout, lightSetLayout, shadowSetLayout };
-    uint32_t setLayoutCount = shadowSetLayout != VK_NULL_HANDLE ? 4 : 3;
+    VkDescriptorSetLayout setLayouts[6] = { perFrameSetLayout, gbufferSetLayout, lightSetLayout, shadowSetLayout, spotShadowSetLayout, pointShadowSetLayout };
+    uint32_t setLayoutCount = 6;
+    if (shadowSetLayout == VK_NULL_HANDLE) setLayoutCount = 3;
+    else if (spotShadowSetLayout == VK_NULL_HANDLE) setLayoutCount = 4;
+    else if (pointShadowSetLayout == VK_NULL_HANDLE) setLayoutCount = 5;
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;

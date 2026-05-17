@@ -109,11 +109,21 @@ void DescriptorsManager::Cleanup()
         vkDestroyDescriptorSetLayout(device, m_shadowSetLayout, nullptr);
         m_shadowSetLayout = VK_NULL_HANDLE;
     }
+    if (m_spotShadowSetLayout != VK_NULL_HANDLE)
+    {
+        vkDestroyDescriptorSetLayout(device, m_spotShadowSetLayout, nullptr);
+        m_spotShadowSetLayout = VK_NULL_HANDLE;
+    }
+    if (m_pointShadowSetLayout != VK_NULL_HANDLE)
+    {
+        vkDestroyDescriptorSetLayout(device, m_pointShadowSetLayout, nullptr);
+        m_pointShadowSetLayout = VK_NULL_HANDLE;
+    }
 }
 
 void DescriptorsManager::CreateDescriptorPool()
 {
-    std::vector<VkDescriptorPoolSize> poolSizes(14);
+    std::vector<VkDescriptorPoolSize> poolSizes(17);
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSizes[0].descriptorCount = static_cast<uint32_t>(m_swapChain->GetSwapChainImages().size());
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
@@ -145,6 +155,15 @@ void DescriptorsManager::CreateDescriptorPool()
 
     poolSizes[13].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     poolSizes[13].descriptorCount = 1;
+
+    poolSizes[14].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[14].descriptorCount = 2;
+
+    poolSizes[15].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[15].descriptorCount = 2;
+
+    poolSizes[16].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    poolSizes[16].descriptorCount = 1;
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1043,22 +1062,164 @@ void DescriptorsManager::UpdateLuminanceDescriptorSet()
 
 void DescriptorsManager::CreateShadowSetLayout()
 {
-    VkDescriptorSetLayoutBinding shadowBinding{};
-    shadowBinding.binding = 0;
-    shadowBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    shadowBinding.descriptorCount = 1;
-    shadowBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    VkDescriptorSetLayoutBinding bindings[2]{};
+    bindings[0].binding = 0;
+    bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    bindings[0].descriptorCount = 1;
+    bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    bindings[1].binding = 1;
+    bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    bindings[1].descriptorCount = 1;
+    bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = 1;
-    layoutInfo.pBindings = &shadowBinding;
+    layoutInfo.bindingCount = 2;
+    layoutInfo.pBindings = bindings;
 
     if (vkCreateDescriptorSetLayout(m_device->GetDevice(), &layoutInfo, nullptr, &m_shadowSetLayout) != VK_SUCCESS)
         throw std::runtime_error("failed to create shadow descriptor set layout!");
 }
 
-void DescriptorsManager::CreateShadowDescriptorSet(VkImageView shadowMapView, VkSampler shadowSampler)
+void DescriptorsManager::CreatePointShadowSetLayout()
+{
+    VkDescriptorSetLayoutBinding bindings[3]{};
+    bindings[0].binding = 0;
+    bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    bindings[0].descriptorCount = 1;
+    bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    bindings[1].binding = 1;
+    bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    bindings[1].descriptorCount = 1;
+    bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    bindings[2].binding = 2;
+    bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    bindings[2].descriptorCount = 1;
+    bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo layoutInfo{};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = 3;
+    layoutInfo.pBindings = bindings;
+
+    if (vkCreateDescriptorSetLayout(m_device->GetDevice(), &layoutInfo, nullptr, &m_pointShadowSetLayout) != VK_SUCCESS)
+        throw std::runtime_error("failed to create point shadow descriptor set layout!");
+}
+
+void DescriptorsManager::CreatePointShadowDescriptorSet(VkImageView pointShadowView, VkSampler shadowSampler, VkSampler shadowDepthSampler, VkBuffer pointMatrixSSBO, VkDeviceSize bufferSize)
+{
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = m_descriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = &m_pointShadowSetLayout;
+
+    if (vkAllocateDescriptorSets(m_device->GetDevice(), &allocInfo, &m_pointShadowDescriptorSet) != VK_SUCCESS)
+        throw std::runtime_error("failed to allocate point shadow descriptor set!");
+
+    VkDescriptorImageInfo imageInfos[2]{};
+    imageInfos[0].sampler = shadowSampler;
+    imageInfos[0].imageView = pointShadowView;
+    imageInfos[0].imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+
+    imageInfos[1].sampler = shadowDepthSampler;
+    imageInfos[1].imageView = pointShadowView;
+    imageInfos[1].imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+
+    VkDescriptorBufferInfo bufferInfo{};
+    bufferInfo.buffer = pointMatrixSSBO;
+    bufferInfo.offset = 0;
+    bufferInfo.range = bufferSize;
+
+    VkWriteDescriptorSet writes[3]{};
+    writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[0].dstSet = m_pointShadowDescriptorSet;
+    writes[0].dstBinding = 0;
+    writes[0].descriptorCount = 1;
+    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes[0].pImageInfo = &imageInfos[0];
+
+    writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[1].dstSet = m_pointShadowDescriptorSet;
+    writes[1].dstBinding = 1;
+    writes[1].descriptorCount = 1;
+    writes[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    writes[1].pBufferInfo = &bufferInfo;
+
+    writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[2].dstSet = m_pointShadowDescriptorSet;
+    writes[2].dstBinding = 2;
+    writes[2].descriptorCount = 1;
+    writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes[2].pImageInfo = &imageInfos[1];
+
+    vkUpdateDescriptorSets(m_device->GetDevice(), 3, writes, 0, nullptr);
+}
+
+void DescriptorsManager::CreateSpotShadowSetLayout()
+{
+    VkDescriptorSetLayoutBinding bindings[2]{};
+    bindings[0].binding = 0;
+    bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    bindings[0].descriptorCount = 1;
+    bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    bindings[1].binding = 1;
+    bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    bindings[1].descriptorCount = 1;
+    bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo layoutInfo{};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = 2;
+    layoutInfo.pBindings = bindings;
+
+    if (vkCreateDescriptorSetLayout(m_device->GetDevice(), &layoutInfo, nullptr, &m_spotShadowSetLayout) != VK_SUCCESS)
+        throw std::runtime_error("failed to create spot shadow descriptor set layout!");
+}
+
+void DescriptorsManager::CreateSpotShadowDescriptorSet(VkImageView spotShadowView, VkSampler shadowSampler, VkSampler shadowDepthSampler)
+{
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = m_descriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = &m_spotShadowSetLayout;
+
+    if (vkAllocateDescriptorSets(m_device->GetDevice(), &allocInfo, &m_spotShadowDescriptorSet) != VK_SUCCESS)
+        throw std::runtime_error("failed to allocate spot shadow descriptor set!");
+
+    VkDescriptorImageInfo imageInfos[2]{};
+    imageInfos[0].sampler = shadowSampler;
+    imageInfos[0].imageView = spotShadowView;
+    imageInfos[0].imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+
+    imageInfos[1].sampler = shadowDepthSampler;
+    imageInfos[1].imageView = spotShadowView;
+    imageInfos[1].imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+
+    VkWriteDescriptorSet writes[2]{};
+    writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[0].dstSet = m_spotShadowDescriptorSet;
+    writes[0].dstBinding = 0;
+    writes[0].descriptorCount = 1;
+    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes[0].pImageInfo = &imageInfos[0];
+
+    writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[1].dstSet = m_spotShadowDescriptorSet;
+    writes[1].dstBinding = 1;
+    writes[1].descriptorCount = 1;
+    writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes[1].pImageInfo = &imageInfos[1];
+
+    vkUpdateDescriptorSets(m_device->GetDevice(), 2, writes, 0, nullptr);
+}
+
+void DescriptorsManager::CreateShadowDescriptorSet(VkImageView shadowMapView, VkSampler shadowSampler, VkSampler shadowDepthSampler)
 {
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -1069,20 +1230,32 @@ void DescriptorsManager::CreateShadowDescriptorSet(VkImageView shadowMapView, Vk
     if (vkAllocateDescriptorSets(m_device->GetDevice(), &allocInfo, &m_shadowDescriptorSet) != VK_SUCCESS)
         throw std::runtime_error("failed to allocate shadow descriptor set!");
 
-    VkDescriptorImageInfo imageInfo{};
-    imageInfo.sampler = shadowSampler;
-    imageInfo.imageView = shadowMapView;
-    imageInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+    VkDescriptorImageInfo shadowImageInfo{};
+    shadowImageInfo.sampler = shadowSampler;
+    shadowImageInfo.imageView = shadowMapView;
+    shadowImageInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 
-    VkWriteDescriptorSet write{};
-    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write.dstSet = m_shadowDescriptorSet;
-    write.dstBinding = 0;
-    write.descriptorCount = 1;
-    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    write.pImageInfo = &imageInfo;
+    VkDescriptorImageInfo depthImageInfo{};
+    depthImageInfo.sampler = shadowDepthSampler;
+    depthImageInfo.imageView = shadowMapView;
+    depthImageInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 
-    vkUpdateDescriptorSets(m_device->GetDevice(), 1, &write, 0, nullptr);
+    VkWriteDescriptorSet writes[2]{};
+    writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[0].dstSet = m_shadowDescriptorSet;
+    writes[0].dstBinding = 0;
+    writes[0].descriptorCount = 1;
+    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes[0].pImageInfo = &shadowImageInfo;
+
+    writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[1].dstSet = m_shadowDescriptorSet;
+    writes[1].dstBinding = 1;
+    writes[1].descriptorCount = 1;
+    writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes[1].pImageInfo = &depthImageInfo;
+
+    vkUpdateDescriptorSets(m_device->GetDevice(), 2, writes, 0, nullptr);
 }
 
 void DescriptorsManager::UpdateCompositeDescriptorSet()

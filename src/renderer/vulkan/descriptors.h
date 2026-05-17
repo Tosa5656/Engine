@@ -73,9 +73,19 @@ public:
     VkDescriptorSet GetLuminanceDescriptorSet() const { return m_luminanceDescriptorSet; }
 
     void CreateShadowSetLayout();
-    void CreateShadowDescriptorSet(VkImageView shadowMapView, VkSampler shadowSampler);
+    void CreateShadowDescriptorSet(VkImageView shadowMapView, VkSampler shadowSampler, VkSampler shadowDepthSampler);
     VkDescriptorSetLayout GetShadowSetLayout() const { return m_shadowSetLayout; }
     VkDescriptorSet GetShadowDescriptorSet() const { return m_shadowDescriptorSet; }
+
+    void CreateSpotShadowSetLayout();
+    void CreateSpotShadowDescriptorSet(VkImageView spotShadowView, VkSampler shadowSampler, VkSampler shadowDepthSampler);
+    VkDescriptorSetLayout GetSpotShadowSetLayout() const { return m_spotShadowSetLayout; }
+    VkDescriptorSet GetSpotShadowDescriptorSet() const { return m_spotShadowDescriptorSet; }
+
+    void CreatePointShadowSetLayout();
+    void CreatePointShadowDescriptorSet(VkImageView pointShadowView, VkSampler shadowSampler, VkSampler shadowDepthSampler, VkBuffer pointMatrixSSBO, VkDeviceSize bufferSize);
+    VkDescriptorSetLayout GetPointShadowSetLayout() const { return m_pointShadowSetLayout; }
+    VkDescriptorSet GetPointShadowDescriptorSet() const { return m_pointShadowDescriptorSet; }
 
 private:
     Device* m_device = nullptr;
@@ -115,4 +125,10 @@ private:
 
     VkDescriptorSetLayout m_shadowSetLayout = VK_NULL_HANDLE;
     VkDescriptorSet m_shadowDescriptorSet = VK_NULL_HANDLE;
+
+    VkDescriptorSetLayout m_spotShadowSetLayout = VK_NULL_HANDLE;
+    VkDescriptorSet m_spotShadowDescriptorSet = VK_NULL_HANDLE;
+
+    VkDescriptorSetLayout m_pointShadowSetLayout = VK_NULL_HANDLE;
+    VkDescriptorSet m_pointShadowDescriptorSet = VK_NULL_HANDLE;
 };

@@ -65,19 +65,19 @@
 - [x] Cascade debug visualization: color-coded cascade regions in ImGui overlay
 
 #### PCF & soft shadows
-- [ ] Rotated grid PCF: dither samples per pixel to reduce banding
+- [x] Rotated grid PCF: dither samples per pixel to reduce banding
 - [x] Stratified Poisson: distribute samples in disk, random rotation per pixel
-- [ ] Percentage-Closer Soft Shadows (PCSS): blocker search → penumbra estimation → PCF
-- [ ] PCSS blocker step: average blocker depth in search region
-- [ ] PCSS penumbra: penumbra width ∝ (receiverDepth − blockerAvg) / blockerAvg
-- [ ] PCSS filter: PCF with dynamic radius from penumbra estimate
-- [ ] Contact Hardening: shadow hardness ∝ distance to contact (near contact = hard, far = soft)
+- [x] Percentage-Closer Soft Shadows (PCSS): blocker search → penumbra estimation → PCF
+- [x] PCSS blocker step: average blocker depth in search region
+- [x] PCSS penumbra: penumbra width ∝ (receiverDepth − blockerAvg) / blockerAvg
+- [x] PCSS filter: PCF with dynamic radius from penumbra estimate
+- [x] Contact Hardening: shadow hardness ∝ distance to contact (near contact = hard, far = soft)
 
 ### Shadows — Other light types
-- [ ] Spot light shadow: perspective projection, 1D depth array, PCF
-- [ ] Point light shadow: omnidirectional (cube map / dual-paraboloid), 6-face depth
-- [ ] Point light PCF: sample cubemap faces with offset, hardware bilinear across faces
-- [ ] Percentage-Closer Soft Shadows for spot / point: blocker search in light space
+- [x] Spot light shadow: perspective projection, 2D array depth, PCF via hardware sampler2DArrayShadow
+- [x] Point light shadow: omnidirectional (2D array, 6-face depth), hardware PCF per-face
+- [x] Point light PCF: per-face PCF (3×3, Poisson, 4×4) with configurable kernel
+- [x] PCSS for spot / point: blocker search, penumbra estimation, variable PCF filter
 
 ### Shadow map optimization
 - [ ] Shadow map atlas: pack multiple shadow maps (dir, spot, point) into single texture array

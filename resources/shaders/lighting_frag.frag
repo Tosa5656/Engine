@@ -21,6 +21,8 @@ layout(set = 0, binding = 0) uniform PerFrameUBO
     float cascadeUVScale1;
     float cascadeUVScale2;
     int debugCascades;
+    float pcssLightSize;
+    float pcssBlockerRadius;
 } perFrame;
 
 layout(set = 1, binding = 0) uniform sampler2D gPosition;
@@ -36,6 +38,7 @@ struct Light
     vec4 color;
     vec4 params;
     vec4 atten;
+    mat4 shadowMatrix;
 };
 
 layout(set = 2, binding = 0) readonly buffer LightSSBO
@@ -45,6 +48,17 @@ layout(set = 2, binding = 0) readonly buffer LightSSBO
 } lightData;
 
 layout(set = 3, binding = 0) uniform sampler2DArrayShadow shadowMap;
+layout(set = 3, binding = 1) uniform sampler2DArray shadowMapDepth;
+
+layout(set = 4, binding = 0) uniform sampler2DArrayShadow spotShadowMap;
+layout(set = 4, binding = 1) uniform sampler2DArray spotShadowMapDepth;
+
+layout(set = 5, binding = 0) uniform sampler2DArrayShadow pointShadowMap;
+layout(set = 5, binding = 1) readonly buffer PointShadowMatrices
+{
+    mat4 matrices[];
+} pointShadowData;
+layout(set = 5, binding = 2) uniform sampler2DArray pointShadowMapDepth;
 
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec4 outEmissive;
@@ -87,10 +101,11 @@ vec3 applyNormalOffset(vec3 worldPos, vec3 normal, vec3 lightDir)
     return worldPos + normal * offset;
 }
 
-float sampleCascade(sampler2DArrayShadow samp, vec2 uv, int layer, float ref, vec2 texelSize, float uvScale, vec2 noiseSeed)
+float sampleCascade(sampler2DArrayShadow samp, sampler2DArray depthSamp, vec2 uv, int layer, float ref, vec2 texelSize, float uvScale, vec2 noiseSeed)
 {
     vec2 scaledUV = uv * uvScale;
     vec2 scaledTexelSize = texelSize / uvScale;
+
     if (perFrame.pcfKernel == 1)
     {
         return texture(samp, vec4(scaledUV, layer, ref));
@@ -103,7 +118,7 @@ float sampleCascade(sampler2DArrayShadow samp, vec2 uv, int layer, float ref, ve
                 sum += texture(samp, vec4(scaledUV + vec2(x, y) * scaledTexelSize, layer, ref));
         return sum / 9.0;
     }
-    else
+    else if (perFrame.pcfKernel == 5)
     {
         float angle = rand(noiseSeed) * 6.2831853;
         float s = sin(angle);
@@ -113,6 +128,60 @@ float sampleCascade(sampler2DArrayShadow samp, vec2 uv, int layer, float ref, ve
         for (int i = 0; i < 16; i++)
         {
             vec2 offset = rot * poissonDisk[i] * scaledTexelSize * 2.0;
+            sum += texture(samp, vec4(scaledUV + offset, layer, ref));
+        }
+        return sum / 16.0;
+    }
+    else if (perFrame.pcfKernel == 7)
+    {
+        float angle = rand(noiseSeed) * 6.2831853;
+        float s = sin(angle);
+        float c = cos(angle);
+        mat2 rot = mat2(c, -s, s, c);
+        float sum = 0.0;
+        for (int x = -1; x <= 2; x++)
+            for (int y = -1; y <= 2; y++)
+            {
+                vec2 offset = rot * (vec2(x, y) + 0.5) * scaledTexelSize;
+                sum += texture(samp, vec4(scaledUV + offset, layer, ref));
+            }
+        return sum / 16.0;
+    }
+    else
+    {
+        float receiverDepth = ref + perFrame.depthBias;
+        float searchUVRadius = perFrame.pcssBlockerRadius * scaledTexelSize.x;
+        float angle = rand(noiseSeed) * 6.2831853;
+        float s = sin(angle);
+        float c = cos(angle);
+        mat2 rot = mat2(c, -s, s, c);
+
+        float avgBlockerDepth = 0.0;
+        int blockerCount = 0;
+        for (int i = 0; i < 16; i++)
+        {
+            vec2 offset = rot * poissonDisk[i] * searchUVRadius;
+            float sampleDepth = texture(depthSamp, vec3(scaledUV + offset, layer)).r;
+            if (sampleDepth < receiverDepth - 0.001)
+            {
+                avgBlockerDepth += sampleDepth;
+                blockerCount++;
+            }
+        }
+
+        float penumbraWidth = 1.0;
+        if (blockerCount > 0)
+        {
+            avgBlockerDepth /= float(blockerCount);
+            penumbraWidth = (receiverDepth - avgBlockerDepth) / avgBlockerDepth * perFrame.pcssLightSize;
+            penumbraWidth = clamp(penumbraWidth, 0.5, 20.0);
+        }
+
+        vec2 filterSize = scaledTexelSize * penumbraWidth;
+        float sum = 0.0;
+        for (int i = 0; i < 16; i++)
+        {
+            vec2 offset = rot * poissonDisk[i] * filterSize;
             sum += texture(samp, vec4(scaledUV + offset, layer, ref));
         }
         return sum / 16.0;
@@ -129,9 +198,6 @@ float computeShadow(vec3 worldPos, vec3 normal, vec3 lightDir, out int cascadeId
 
     cascadeIdx = -1;
 
-    // Use ORIGINAL position for cascade selection to prevent normal offset
-    // from hopping between cascades. Clamp offset UV instead of skipping,
-    // so shadows don't vanish when the offset pushes past cascade edges.
     for (int i = 0; i < 3; i++)
     {
         mat4 lightMat = getLightMatrix(i);
@@ -146,17 +212,13 @@ float computeShadow(vec3 worldPos, vec3 normal, vec3 lightDir, out int cascadeId
         vec4 lsPosOff = lightMat * vec4(posWithOffset, 1.0);
         vec3 proj = lsPosOff.xyz * 0.5 + 0.5;
 
-        // Clamp UV and depth so normal offset at cascade edges
-        // doesn't push samples past the cascade far plane,
-        // which would make the hardware comparison always fail.
         proj.xyz = clamp(proj.xyz, 0.0, 1.0);
 
         float uvScale = getCascadeUVScale(i);
         float ref = proj.z - perFrame.depthBias;
         vec2 noiseSeed = worldPos.zx;
-        float shadow = sampleCascade(shadowMap, proj.xy, i, ref, texelSize, uvScale, noiseSeed);
+        float shadow = sampleCascade(shadowMap, shadowMapDepth, proj.xy, i, ref, texelSize, uvScale, noiseSeed);
 
-        // Blend with next cascade if near split boundary and next cascade covers fragment
         if (i < 2)
         {
             float nextSplit = (i == 0) ? perFrame.cascadeSplits.x : perFrame.cascadeSplits.y;
@@ -177,7 +239,7 @@ float computeShadow(vec3 worldPos, vec3 normal, vec3 lightDir, out int cascadeId
                     proj2.z >= 0.0 && proj2.z <= 1.0)
                 {
                     float ref2 = proj2.z - perFrame.depthBias;
-                    float shadow2 = sampleCascade(shadowMap, proj2.xy, i + 1, ref2, texelSize, uvScale2, noiseSeed);
+                    float shadow2 = sampleCascade(shadowMap, shadowMapDepth, proj2.xy, i + 1, ref2, texelSize, uvScale2, noiseSeed);
                     shadow = mix(shadow, shadow2, blend);
                 }
             }
@@ -196,10 +258,11 @@ vec3 ComputeDirectionalLight(Light light, vec3 normal, vec3 viewDir, vec3 albedo
     float intensity = light.direction.w;
     vec3 lightColor = light.color.rgb * intensity;
 
-    float diff = max(dot(normal, lightDir), 0.0);
+    vec3 toLight = -lightDir;
+    float diff = max(dot(normal, toLight), 0.0);
     vec3 diffuse = albedo * diff;
 
-    vec3 halfDir = normalize(lightDir + viewDir);
+    vec3 halfDir = normalize(toLight + viewDir);
     float spec = pow(max(dot(normal, halfDir), 0.0), 32.0);
     vec3 specular = lightColor * spec * metallic;
 
@@ -210,7 +273,6 @@ vec3 ComputeDirectionalLight(Light light, vec3 normal, vec3 viewDir, vec3 albedo
 
     vec3 result = (1.0 - shadow) * (lightColor * diffuse + specular);
 
-    // Debug cascade visualization
     if (perFrame.debugCascades != 0)
     {
         float shade = (1.0 - shadow) * 0.5 + 0.5;
@@ -227,6 +289,124 @@ vec3 ComputeDirectionalLight(Light light, vec3 normal, vec3 viewDir, vec3 albedo
     }
 
     return result;
+}
+
+float computePointShadow(Light light, vec3 fragPos, vec3 normal)
+{
+    int shadowIdx = int(light.params.w);
+    if (shadowIdx < 0) return 1.0;
+
+    vec3 lightPos = light.position.xyz;
+    vec3 fromLight = fragPos - lightPos;
+    vec3 lightDir = normalize(fromLight);
+
+    vec3 posWithOffset = applyNormalOffset(fragPos, normal, lightDir);
+
+    vec3 fromLightOff = posWithOffset - lightPos;
+    vec3 absDir = abs(fromLightOff);
+
+    int face;
+    if (absDir.x >= absDir.y && absDir.x >= absDir.z)
+        face = (fromLightOff.x >= 0) ? 0 : 1;
+    else if (absDir.y >= absDir.x && absDir.y >= absDir.z)
+        face = (fromLightOff.y >= 0) ? 2 : 3;
+    else
+        face = (fromLightOff.z >= 0) ? 4 : 5;
+
+    int matIdx = shadowIdx * 6 + face;
+    vec4 lsPos = pointShadowData.matrices[matIdx] * vec4(posWithOffset, 1.0);
+    vec3 proj = lsPos.xyz * 0.5 + 0.5;
+
+    if (proj.x < 0.0 || proj.x > 1.0 || proj.y < 0.0 || proj.y > 1.0 || proj.z < 0.0 || proj.z > 1.0)
+        return 0.0;
+
+    int layer = shadowIdx * 6 + face;
+    float ref = proj.z - perFrame.depthBias;
+    ivec3 ptSize = textureSize(pointShadowMap, 0);
+    vec2 texelSize = 1.0 / vec2(ptSize.xy);
+    vec2 noiseSeed = fragPos.xz + float(shadowIdx);
+
+    if (perFrame.pcfKernel == 1)
+    {
+        float shadow = texture(pointShadowMap, vec4(proj.xy, layer, ref));
+        return 1.0 - shadow;
+    }
+    else if (perFrame.pcfKernel == 3)
+    {
+        float sum = 0.0;
+        for (int x = -1; x <= 1; x++)
+            for (int y = -1; y <= 1; y++)
+                sum += texture(pointShadowMap, vec4(proj.xy + vec2(x, y) * texelSize, layer, ref));
+        return 1.0 - sum / 9.0;
+    }
+    else if (perFrame.pcfKernel == 5)
+    {
+        float angle = rand(noiseSeed) * 6.2831853;
+        float s = sin(angle);
+        float c = cos(angle);
+        mat2 rot = mat2(c, -s, s, c);
+        float sum = 0.0;
+        for (int i = 0; i < 16; i++)
+        {
+            vec2 offset = rot * poissonDisk[i] * texelSize * 2.0;
+            sum += texture(pointShadowMap, vec4(proj.xy + offset, layer, ref));
+        }
+        return 1.0 - sum / 16.0;
+    }
+    else if (perFrame.pcfKernel == 7)
+    {
+        float angle = rand(noiseSeed) * 6.2831853;
+        float s = sin(angle);
+        float c = cos(angle);
+        mat2 rot = mat2(c, -s, s, c);
+        float sum = 0.0;
+        for (int x = -1; x <= 2; x++)
+            for (int y = -1; y <= 2; y++)
+            {
+                vec2 offset = rot * (vec2(x, y) + 0.5) * texelSize;
+                sum += texture(pointShadowMap, vec4(proj.xy + offset, layer, ref));
+            }
+        return 1.0 - sum / 16.0;
+    }
+    else
+    {
+        float receiverDepth = ref + perFrame.depthBias;
+        float searchUVRadius = perFrame.pcssBlockerRadius * texelSize.x;
+        float angle = rand(noiseSeed) * 6.2831853;
+        float s = sin(angle);
+        float c = cos(angle);
+        mat2 rot = mat2(c, -s, s, c);
+
+        float avgBlockerDepth = 0.0;
+        int blockerCount = 0;
+        for (int i = 0; i < 16; i++)
+        {
+            vec2 offset = rot * poissonDisk[i] * searchUVRadius;
+            float sampleDepth = texture(pointShadowMapDepth, vec3(proj.xy + offset, layer)).r;
+            if (sampleDepth < receiverDepth - 0.001)
+            {
+                avgBlockerDepth += sampleDepth;
+                blockerCount++;
+            }
+        }
+
+        float penumbraWidth = 1.0;
+        if (blockerCount > 0)
+        {
+            avgBlockerDepth /= float(blockerCount);
+            penumbraWidth = (receiverDepth - avgBlockerDepth) / avgBlockerDepth * perFrame.pcssLightSize;
+            penumbraWidth = clamp(penumbraWidth, 0.5, 20.0);
+        }
+
+        vec2 filterSize = texelSize * penumbraWidth;
+        float sum = 0.0;
+        for (int i = 0; i < 16; i++)
+        {
+            vec2 offset = rot * poissonDisk[i] * filterSize;
+            sum += texture(pointShadowMap, vec4(proj.xy + offset, layer, ref));
+        }
+        return 1.0 - sum / 16.0;
+    }
 }
 
 vec3 ComputePointLight(Light light, vec3 fragPos, vec3 normal, vec3 viewDir, vec3 albedo, float metallic)
@@ -250,7 +430,109 @@ vec3 ComputePointLight(Light light, vec3 fragPos, vec3 normal, vec3 viewDir, vec
     float spec = pow(max(dot(normal, halfDir), 0.0), 32.0);
     vec3 specular = lightColor * spec * metallic;
 
-    return (lightColor * diffuse + specular) * attenuation * radiusAtten;
+    float shadow = computePointShadow(light, fragPos, normal);
+
+    return (1.0 - shadow) * (lightColor * diffuse + specular) * attenuation * radiusAtten;
+}
+
+float computeSpotShadow(Light light, vec3 fragPos, vec3 normal, vec3 lightDir)
+{
+    int shadowIdx = int(light.params.w);
+    if (shadowIdx < 0) return 1.0;
+
+    vec3 posWithOffset = applyNormalOffset(fragPos, normal, lightDir);
+    vec4 lsPos = light.shadowMatrix * vec4(posWithOffset, 1.0);
+    vec3 proj = lsPos.xyz * 0.5 + 0.5;
+
+    if (proj.x < 0.0 || proj.x > 1.0 || proj.y < 0.0 || proj.y > 1.0 || proj.z < 0.0 || proj.z > 1.0)
+        return 0.0;
+
+    float ref = proj.z - perFrame.depthBias;
+    ivec3 spotSize = textureSize(spotShadowMap, 0);
+    vec2 texelSize = 1.0 / vec2(spotSize.xy);
+    vec2 noiseSeed = fragPos.xz + float(shadowIdx);
+
+    if (perFrame.pcfKernel == 1)
+    {
+        float shadow = texture(spotShadowMap, vec4(proj.xy, shadowIdx, ref));
+        return 1.0 - shadow;
+    }
+    else if (perFrame.pcfKernel == 3)
+    {
+        float sum = 0.0;
+        for (int x = -1; x <= 1; x++)
+            for (int y = -1; y <= 1; y++)
+                sum += texture(spotShadowMap, vec4(proj.xy + vec2(x, y) * texelSize, shadowIdx, ref));
+        return 1.0 - sum / 9.0;
+    }
+    else if (perFrame.pcfKernel == 5)
+    {
+        float angle = rand(noiseSeed) * 6.2831853;
+        float s = sin(angle);
+        float c = cos(angle);
+        mat2 rot = mat2(c, -s, s, c);
+        float sum = 0.0;
+        for (int i = 0; i < 16; i++)
+        {
+            vec2 offset = rot * poissonDisk[i] * texelSize * 2.0;
+            sum += texture(spotShadowMap, vec4(proj.xy + offset, shadowIdx, ref));
+        }
+        return 1.0 - sum / 16.0;
+    }
+    else if (perFrame.pcfKernel == 7)
+    {
+        float angle = rand(noiseSeed) * 6.2831853;
+        float s = sin(angle);
+        float c = cos(angle);
+        mat2 rot = mat2(c, -s, s, c);
+        float sum = 0.0;
+        for (int x = -1; x <= 2; x++)
+            for (int y = -1; y <= 2; y++)
+            {
+                vec2 offset = rot * (vec2(x, y) + 0.5) * texelSize;
+                sum += texture(spotShadowMap, vec4(proj.xy + offset, shadowIdx, ref));
+            }
+        return 1.0 - sum / 16.0;
+    }
+    else
+    {
+        float receiverDepth = ref + perFrame.depthBias;
+        float searchUVRadius = perFrame.pcssBlockerRadius * texelSize.x;
+        float angle = rand(noiseSeed) * 6.2831853;
+        float s = sin(angle);
+        float c = cos(angle);
+        mat2 rot = mat2(c, -s, s, c);
+
+        float avgBlockerDepth = 0.0;
+        int blockerCount = 0;
+        for (int i = 0; i < 16; i++)
+        {
+            vec2 offset = rot * poissonDisk[i] * searchUVRadius;
+            float sampleDepth = texture(spotShadowMapDepth, vec3(proj.xy + offset, shadowIdx)).r;
+            if (sampleDepth < receiverDepth - 0.001)
+            {
+                avgBlockerDepth += sampleDepth;
+                blockerCount++;
+            }
+        }
+
+        float penumbraWidth = 1.0;
+        if (blockerCount > 0)
+        {
+            avgBlockerDepth /= float(blockerCount);
+            penumbraWidth = (receiverDepth - avgBlockerDepth) / avgBlockerDepth * perFrame.pcssLightSize;
+            penumbraWidth = clamp(penumbraWidth, 0.5, 20.0);
+        }
+
+        vec2 filterSize = texelSize * penumbraWidth;
+        float sum = 0.0;
+        for (int i = 0; i < 16; i++)
+        {
+            vec2 offset = rot * poissonDisk[i] * filterSize;
+            sum += texture(spotShadowMap, vec4(proj.xy + offset, shadowIdx, ref));
+        }
+        return 1.0 - sum / 16.0;
+    }
 }
 
 vec3 ComputeSpotLight(Light light, vec3 fragPos, vec3 normal, vec3 viewDir, vec3 albedo, float metallic)
@@ -268,7 +550,7 @@ vec3 ComputeSpotLight(Light light, vec3 fragPos, vec3 normal, vec3 viewDir, vec3
     radiusAtten *= radiusAtten;
 
     vec3 spotDir = normalize(light.direction.xyz);
-    float theta = dot(lightDir, spotDir);
+    float theta = dot(-lightDir, spotDir);
     float innerCutoff = light.params.x;
     float outerCutoff = light.params.y;
     float epsilon = innerCutoff - outerCutoff;
@@ -281,7 +563,9 @@ vec3 ComputeSpotLight(Light light, vec3 fragPos, vec3 normal, vec3 viewDir, vec3
     float spec = pow(max(dot(normal, halfDir), 0.0), 32.0);
     vec3 specular = lightColor * spec * metallic;
 
-    return (lightColor * diffuse + specular) * attenuation * radiusAtten * spotIntensity;
+    float shadow = computeSpotShadow(light, fragPos, normal, lightDir);
+
+    return (1.0 - shadow) * (lightColor * diffuse + specular) * attenuation * radiusAtten * spotIntensity;
 }
 
 void main()
