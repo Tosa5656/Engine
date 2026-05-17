@@ -47,6 +47,69 @@ target_link_libraries(${PROJECT_NAME} PRIVATE Vulkan::Vulkan)
 
 include(FetchContent)
 
+function(download_ultralight)
+    set(ULTRALIGHT_ARCHIVE "ultralight-sdk-latest-linux-x64.7z")
+    set(ULTRALIGHT_URL "https://ultralight-sdk.sfo2.cdn.digitaloceanspaces.com/${ULTRALIGHT_ARCHIVE}")
+    set(ULTRALIGHT_DEPS_DIR "${CMAKE_BINARY_DIR}/_deps/ultralight")
+    set(ULTRALIGHT_ARCHIVE_PATH "${CMAKE_BINARY_DIR}/_deps/${ULTRALIGHT_ARCHIVE}")
+
+    if(NOT EXISTS "${ULTRALIGHT_DEPS_DIR}/include/Ultralight/Ultralight.h")
+        message(STATUS "Downloading Ultralight SDK ${ULTRALIGHT_VERSION}...")
+        file(DOWNLOAD
+            ${ULTRALIGHT_URL}
+            ${ULTRALIGHT_ARCHIVE_PATH}
+            SHOW_PROGRESS
+            STATUS ULTRALIGHT_DOWNLOAD_STATUS
+        )
+        list(GET ULTRALIGHT_DOWNLOAD_STATUS 0 ULTRALIGHT_DOWNLOAD_CODE)
+        if(NOT ULTRALIGHT_DOWNLOAD_CODE EQUAL 0)
+            message(FATAL_ERROR "Failed to download Ultralight SDK: ${ULTRALIGHT_DOWNLOAD_STATUS}")
+        endif()
+
+        find_program(P7ZIP_7Z 7z REQUIRED)
+        message(STATUS "Extracting Ultralight SDK...")
+        execute_process(
+            COMMAND ${P7ZIP_7Z} x -y ${ULTRALIGHT_ARCHIVE_PATH}
+            WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/_deps
+            RESULT_VARIABLE ULTRALIGHT_EXTRACT_RESULT
+        )
+        if(NOT ULTRALIGHT_EXTRACT_RESULT EQUAL 0)
+            message(FATAL_ERROR "Failed to extract Ultralight SDK")
+        endif()
+
+        file(GLOB ULTRALIGHT_EXTRACTED_DIR "${CMAKE_BINARY_DIR}/_deps/Ultralight-*")
+        if(ULTRALIGHT_EXTRACTED_DIR)
+            file(RENAME ${ULTRALIGHT_EXTRACTED_DIR} ${ULTRALIGHT_DEPS_DIR})
+        endif()
+        file(REMOVE ${ULTRALIGHT_ARCHIVE_PATH})
+    endif()
+
+    add_library(Ultralight INTERFACE)
+    target_include_directories(Ultralight INTERFACE 
+        ${CMAKE_BINARY_DIR}/_deps/include
+        ${CMAKE_BINARY_DIR}/_deps/include/Ultralight
+    )
+
+    if(UNIX)
+        target_link_libraries(Ultralight INTERFACE
+            dl
+            pthread
+            ${CMAKE_BINARY_DIR}/_deps/bin/libUltralight.so
+            ${CMAKE_BINARY_DIR}/_deps/bin/libUltralightCore.so
+            ${CMAKE_BINARY_DIR}/_deps/bin/libWebCore.so
+            ${CMAKE_BINARY_DIR}/_deps/bin/libAppCore.so
+        )
+    elseif(WIN32)
+        target_link_libraries(Ultralight INTERFACE
+            ${CMAKE_BINARY_DIR}/_deps/lib/Ultralight.lib
+            ${CMAKE_BINARY_DIR}/_deps/lib/UltralightCore.lib
+            ${CMAKE_BINARY_DIR}/_deps/lib/AppCore.lib
+        )
+    endif()
+endfunction()
+
+download_ultralight()
+
 FetchContent_Declare(
         glfw
         GIT_REPOSITORY https://github.com/glfw/glfw.git
@@ -87,6 +150,7 @@ FetchContent_MakeAvailable(stb)
 include_directories(${stb_SOURCE_DIR})
 
 target_link_libraries(${PROJECT_NAME} PRIVATE GPUOpen::VulkanMemoryAllocator)
+target_link_libraries(${PROJECT_NAME} PRIVATE Ultralight)
 
 FetchContent_Declare(
         imgui
@@ -107,6 +171,8 @@ set(IMGUI_SOURCES
 )
 
 add_library(imgui STATIC ${IMGUI_SOURCES})
+
+
 
 target_include_directories(imgui PUBLIC
         ${imgui_SOURCE_DIR}
